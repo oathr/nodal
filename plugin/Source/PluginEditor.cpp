@@ -31,7 +31,56 @@ std::optional<juce::WebBrowserComponent::Resource> getResource(const juce::Strin
 
 juce::String utf8(const char* s) { return juce::String::fromUTF8(s); }
 
+juce::WebBrowserComponent::Options webOptions() {
+    return juce::WebBrowserComponent::Options{}
+        .withBackend(juce::WebBrowserComponent::Options::Backend::webview2)
+        .withWinWebView2Options(juce::WebBrowserComponent::Options::WinWebView2{}.withUserDataFolder(
+            juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("NODAL")))
+        .withNativeIntegrationEnabled()
+        .withResourceProvider(getResource);
+}
+
 }  // namespace
+
+// The page in "plate" view (ui.html?view=plate): the visualiser only, filling a borderless
+// window over the whole monitor. Escape or a double-click asks to close (plateClose).
+struct NodalEditor::PlateWindow : juce::Component {
+    juce::WebBrowserComponent web;
+
+    explicit PlateWindow(std::function<void()> onClose)
+        : web(webOptions().withNativeFunction("plateClose", [onClose](const juce::Array<juce::var>&, auto complete) {
+              complete(juce::var());
+              juce::MessageManager::callAsync(onClose);  // never delete the web view from inside its own call
+          })) {
+        setOpaque(true);
+        addAndMakeVisible(web);
+        web.goToURL(juce::WebBrowserComponent::getResourceProviderRoot() + "?view=plate");
+    }
+    void paint(juce::Graphics& g) override { g.fillAll(juce::Colour(0xff050505)); }
+    void resized() override { web.setBounds(getLocalBounds()); }
+};
+
+void NodalEditor::togglePlateWindow() {
+    if (plateWindow_ != nullptr) return closePlateWindow();
+    juce::Component::SafePointer<NodalEditor> self(this);
+    plateWindow_ = std::make_unique<PlateWindow>([self] {
+        if (self != nullptr) self->closePlateWindow();
+    });
+    const auto* display = juce::Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds());
+    const auto area = display != nullptr ? display->totalArea : juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()->totalArea;
+    plateWindow_->setBounds(area);
+    plateWindow_->addToDesktop(juce::ComponentPeer::windowAppearsOnTaskbar);
+    plateWindow_->setAlwaysOnTop(true);
+    plateWindow_->setVisible(true);
+    plateWindow_->toFront(true);
+    plateWindow_->web.grabKeyboardFocus();
+    webView_.emitEventIfBrowserIsVisible("nodal_plate", true);  // the page's own plate rests meanwhile
+}
+
+void NodalEditor::closePlateWindow() {
+    plateWindow_.reset();
+    webView_.emitEventIfBrowserIsVisible("nodal_plate", false);
+}
 
 NodalEditor::Relays NodalEditor::createRelays() {
     using namespace nodal::params;
@@ -47,12 +96,7 @@ NodalEditor::Relays NodalEditor::createRelays() {
 }
 
 juce::WebBrowserComponent::Options NodalEditor::createOptions(Relays& relays) {
-    auto options = juce::WebBrowserComponent::Options{}
-                       .withBackend(juce::WebBrowserComponent::Options::Backend::webview2)
-                       .withWinWebView2Options(juce::WebBrowserComponent::Options::WinWebView2{}.withUserDataFolder(
-                           juce::File::getSpecialLocation(juce::File::tempDirectory).getChildFile("NODAL")))
-                       .withNativeIntegrationEnabled()
-                       .withResourceProvider(getResource)
+    auto options = webOptions()
                        .withNativeFunction("getPresets", [this](const juce::Array<juce::var>&, auto complete) {
                            juce::Array<juce::var> list;
                            for (const auto& p : nodal::presets::all()) {
@@ -92,6 +136,11 @@ juce::WebBrowserComponent::Options NodalEditor::createOptions(Relays& relays) {
                        .withNativeFunction("tableFile", [this](const juce::Array<juce::var>&, auto complete) {
                            chooseFile();
                            complete(juce::var());
+                       })
+                       .withNativeFunction("plateFullscreen", [this](const juce::Array<juce::var>&, auto complete) {
+                           complete(juce::var());
+                           juce::Component::SafePointer<NodalEditor> self(this);
+                           juce::MessageManager::callAsync([self] { if (self != nullptr) self->togglePlateWindow(); });
                        })
                        .withNativeFunction("getTableList", [this](const juce::Array<juce::var>&, auto complete) { complete(tableList()); })
                        // The page is up: send it every label and the table once.
@@ -138,6 +187,7 @@ NodalEditor::NodalEditor(NodalProcessor& p)
 
 NodalEditor::~NodalEditor() {
     stopTimer();
+    plateWindow_.reset();
     if (processor_.editorScale > 0.0) {
         juce::PropertiesFile settings(settingsOptions());
         settings.setValue("editorScale", processor_.editorScale);
@@ -282,5 +332,10 @@ void NodalEditor::timerCallback() {
         live->setProperty("sampleRate", processor_.getSampleRate());
         live->setProperty("latency", processor_.getLatencySamples());
     }
-    webView_.emitEventIfBrowserIsVisible("nodal_live", juce::var(live));
+    // The plate view has no relays: it gets the two values its drawing reads.
+    live->setProperty("freeze", processor_.apvts.getRawParameterValue("freeze")->load());
+    live->setProperty("spray", processor_.apvts.getParameter("spray")->getValue());
+    const juce::var liveVar(live);
+    webView_.emitEventIfBrowserIsVisible("nodal_live", liveVar);
+    if (plateWindow_ != nullptr) plateWindow_->web.emitEventIfBrowserIsVisible("nodal_live", liveVar);
 }

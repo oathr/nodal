@@ -70,7 +70,7 @@ Gestures (those of STASIS, and more):
 | Open menu | ↑ ↓ Enter Escape, and letters to jump ("hi" → Hirajoshi) |
 | ← → | previous / next wavetable |
 | RANGE | drag a handle, drag the band to move it, drag on the keys (when FULL) to draw a range, click outside to bring the nearest handle; wheel / ↑ ↓: the whole range by a semitone; type "C2 C5", "2 oct", "full"; double-click: FULL |
-| Plate | double-click: full window (Escape leaves); ◀ ▶, the wheel, 1 – 6, or ← → in full window: visual mode |
+| Plate | double-click: whole monitor (Escape leaves); mode: ◀ ▶ at the top, the wheel, 1 – 9 and 0, ← → in full screen; colour: ◀ ▶ at the bottom, Shift + wheel, ↑ ↓ |
 
 The line at the bottom of the window says what the hovered control does.
 
@@ -93,11 +93,24 @@ sliding towards where it does not, gathering on the nodal lines. The synth's pit
 modes (higher notes, denser figures), its first harmonics weigh them, the table position flips
 the figure's symmetry, the output level shakes the plate. WebGL2, simulated on the GPU.
 
-Six visual modes, all from the same vibrating field: SAND (the square plate), DISC (a round
-plate: Bessel modes, circles and spokes), SILK (the grains flow along the level lines and
-leave trails), CONTOUR (the field as level lines), MOIRE (two ring gratings bent by the field
-in opposite directions), ECHO (the nodal lines fed back into themselves, zooming out).
-Double-click the plate to fill the window. The mode is remembered.
+Ten visual modes, all drawn from the same vibrating field: SAND (the square plate), DISC (a
+round plate: Bessel modes, circles and spokes), SILK (the grains flow along the level lines
+and leave trails), CONTOUR (the field as level lines), MOIRE (two ring gratings bent by the
+field in opposite directions), ECHO (the nodal lines fed back into themselves, zooming out),
+MEMBRANE (the field as a lit surface swinging up and down), RIDGES (54 stacked lines lifted
+by the field, the nearer hiding the farther), MESH (a grid pushed along the field's slope),
+HALFTONE (a print screen whose dots grow where the plate moves).
+
+Twenty colour skins, chosen apart from the mode: every mode draws in grey, a last pass maps
+the grey through the skin. MONO (black and white, the default), eleven other duotones (BONE, MINT,
+LILAC, PEACH, BUTTER, SKY, ROSE, BLUEPRINT, PAPER, PHOSPHOR, AMBER) and eight four-colour
+gradients (AURORA, SUNSET, PASTEL, EMBER, GLACIER, ORCHID, THERMAL, OPAL). Mode and skin are
+remembered.
+
+Double-click the plate: in the plugin it opens alone in a borderless window over the whole
+monitor the plugin is on (its own web view, fed the same live state; the plate in the
+plugin window rests meanwhile); Escape or a double-click closes it. In a browser, the page
+goes full screen.
 
 `design/ui.html` also opens in a browser (`node dev/serve.js`, then http://localhost:8771/),
 with a simulated sung phrase.

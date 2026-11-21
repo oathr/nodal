@@ -28,6 +28,8 @@ private:
     void chooseFolder();
     void chooseFile();
     juce::var tableList() const;
+    void togglePlateWindow();
+    void closePlateWindow();
     static juce::PropertiesFile::Options settingsOptions();
 
     NodalProcessor& processor_;
@@ -37,6 +39,10 @@ private:
     std::vector<std::unique_ptr<juce::WebToggleButtonParameterAttachment>> toggleAttachments_;
     std::vector<std::unique_ptr<juce::WebComboBoxParameterAttachment>> comboAttachments_;
     std::unique_ptr<juce::FileChooser> chooser_;
+    // The visualiser alone, borderless over the whole monitor the editor is on (double-click
+    // on the plate). Its own web view, fed the same live state.
+    struct PlateWindow;
+    std::unique_ptr<PlateWindow> plateWindow_;
 
     std::vector<float> shownValues_;
     int shownTableVersion_ = -1, shownTableIndex_ = -1, ticks_ = 0;
