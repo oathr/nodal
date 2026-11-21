@@ -361,7 +361,7 @@ const SPECS = {
   voiced: S('slider', .5, pct, { label: 'VOICED ONLY' }),
   sensitivity: S('slider', 1 / 3, pct, { label: 'SENSITIVITY' }),
   sub: S('slider', 0, t => t <= 0 ? 'off' : sgn(-36 + 36 * t) + ' dB', { label: 'SUB' }),
-  breath: S('slider', .15, pct, { label: 'BREATH' }),
+  breath: S('slider', 0, pct, { label: 'BREATH' }),
   tone: S('slider', 1, t => t >= 1 ? 'open' : hz(200 * Math.pow(100, t)), { label: 'TONE' }),
   drive: S('slider', 0, pct, { label: 'DRIVE' }),
   breath_mode: S('choice', 0, null, { choices: ['Flute', 'Air', 'Whisper', 'Input'] }),

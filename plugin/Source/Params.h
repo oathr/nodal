@@ -124,7 +124,7 @@ inline const std::vector<Spec>& all() {
         {"sensitivity", "Sensitivity", Kind::Float, 1.0f / 3.0f, {}, pct},
         // COLOR
         {"sub", "Sub", Kind::Float, 0.0f, {}, [](float t) { return t <= 0.0f ? std::string("off") : fmt("%+.1f dB", -36.0 + 36.0 * t); }},
-        {"breath", "Breath", Kind::Float, 0.15f, {}, pct},
+        {"breath", "Breath", Kind::Float, 0.0f, {}, pct},
         {"breath_mode", "Breath Mode", Kind::Choice, 0.0f, kBreathModes},
         {"tone", "Tone", Kind::Float, 1.0f, {}, [](float t) { return t >= 1.0f ? std::string("open") : hzText(toneHz(t)); }},
         {"drive", "Drive", Kind::Float, 0.0f, {}, pct},

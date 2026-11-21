@@ -238,9 +238,49 @@ void measureBreath() {
             const double h = hz / 440.0;
             if (std::abs(h - std::round(h)) < 0.05 && h > 0.5 && hz < 9000.0) harm += p;
         }
-        std::printf("  %-8s centroid %5.0f Hz, above 4 kHz %4.1f %%, within 5 %% of a harmonic %4.1f %%\n", names[mode], num / den,
-                    100.0 * high / den, 100.0 * harm / den);
+        // Level against the synth, at full BREATH and at 15 %.
+        Stereo low = source;
+        {
+            Engine e;
+            e.prepare(48000.0f);
+            e.setSettings(Setup(0).set("breath", 0.15f).set("breath_mode", float(mode)).set("voices", 0).settings());
+            render(e, low);
+        }
+        double synth = 0, full = 0, part = 0;
+        for (size_t i = 48000; i < 96000; ++i) {
+            synth += double(without.left[i]) * without.left[i];
+            full += std::pow(double(with.left[i]) - without.left[i], 2.0);
+            part += std::pow(double(low.left[i]) - without.left[i], 2.0);
+        }
+        std::printf("  %-8s centroid %5.0f Hz, above 4 kHz %4.1f %%, on the harmonics %4.1f %%; level vs synth: %+5.1f dB at 100 %%, %+5.1f dB at 15 %%\n",
+                    names[mode], num / den, 100.0 * high / den, 100.0 * harm / den, 10.0 * std::log10(full / synth), 10.0 * std::log10(part / synth));
     }
+}
+
+// Each preset's breath against its synth (the preset rendered with and without BREATH).
+void measurePresetBreath() {
+    std::printf("\n== Breath level in the presets (voice-like phrase) ==\n");
+    const Stereo source = voiceLike(48000.0f, {57, 60, 64, 62, 67, 64}, 0.6f, -14.0f);
+    int with = 0;
+    for (size_t p = 0; p < presets::all().size(); ++p) {
+        Setup s{int(p)};
+        if (s.values[size_t(params::indexOf("breath"))] <= 0.0f) continue;
+        ++with;
+        Stereo a = source, b = source;
+        for (Stereo* x : {&a, &b}) {
+            Setup t = s;
+            t.set("mix", 1.0f);
+            if (x == &b) t.set("breath", 0.0f);
+            Engine e;
+            e.prepare(48000.0f);
+            e.setSettings(t.settings());
+            render(e, *x);
+        }
+        double synth = 0, breath = 0;
+        for (size_t i = 4800; i < source.size(); ++i) synth += double(b.left[i]) * b.left[i], breath += std::pow(double(a.left[i]) - b.left[i], 2.0);
+        std::printf("  %2zu %-24s %+6.1f dB\n", p, presets::all()[p].name, 10.0 * std::log10(breath / std::max(synth, 1e-12)));
+    }
+    std::printf("  %d of %zu presets have breath\n", with, presets::all().size());
 }
 
 void measurePresets() {
@@ -313,6 +353,7 @@ int main(int argc, char** argv) {
         measureCpu();
         measureBreath();
         measurePresets();
+        measurePresetBreath();
         measureSafety();
         return 0;
     }

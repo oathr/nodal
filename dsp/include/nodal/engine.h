@@ -131,11 +131,11 @@ public:
         noiseFluteTop_.resize(size_t(noiseSize_ / 2 + 1));
         for (int k = 0; k <= noiseSize_ / 2; ++k) {
             const float f = std::max(1.0f, float(k) * sampleRate / float(noiseSize_));
-            // Air: 12 dB/oct high-pass at 900 Hz, +3 dB/oct up to 6 kHz, 24 dB/oct roll-off from 13 kHz.
-            const float hp = std::pow(f / 900.0f, 4.0f), lift = std::sqrt(std::min(f, 6000.0f) / 1000.0f);
-            noiseAir_[size_t(k)] = hp / (1.0f + hp) * lift / (1.0f + std::pow(f / 13000.0f, 4.0f));
-            // The flute's jet noise on the harmonics fades out above 6 kHz.
-            noiseFluteTop_[size_t(k)] = 1.0f / (1.0f + std::pow(f / 6000.0f, 4.0f));
+            // Air: 12 dB/oct high-pass at 900 Hz, +3 dB/oct up to 3 kHz, 24 dB/oct roll-off from 8 kHz (no sting).
+            const float hp = std::pow(f / 900.0f, 4.0f), lift = std::sqrt(std::min(f, 3000.0f) / 1000.0f);
+            noiseAir_[size_t(k)] = hp / (1.0f + hp) * lift / (1.0f + std::pow(f / 8000.0f, 4.0f));
+            // The flute's jet noise on the harmonics fades out above 5 kHz.
+            noiseFluteTop_[size_t(k)] = 1.0f / (1.0f + std::pow(f / 5000.0f, 4.0f));
         }
         delaySize_ = analyzer_.windowSize() / 2 + 1;
         for (auto& d : delay_) d.assign(size_t(delaySize_), 0.0f);
@@ -392,7 +392,8 @@ private:
         breathStart_ = breathEnd_;
         // A flute breathes under every note; a voice mostly between them.
         const float steady = s.breathMode == int(BreathMode::Flute) ? 0.75f : s.breathMode == int(BreathMode::Air) ? 0.5f : 0.35f;
-        breathEnd_ = s.breath * (steady + (1.0f - steady) * (1.0f - periodic));
+        // A touch, not a layer: squared curve, about -10 dB under the synth at 100 %, -30 dB at 30 %.
+        breathEnd_ = 0.3f * s.breath * s.breath * (steady + (1.0f - steady) * (1.0f - periodic));
         if (first) gateStart_ = gateEnd_, voicedStart_ = voicedEnd_, breathStart_ = breathEnd_;
 
         // Output stage coefficients.
@@ -590,7 +591,7 @@ private:
             noiseBins_[0] = noiseBins_[size_t(bins)] = Complex{};
             for (int k = 1; k < bins; ++k) {
                 const float m = noiseShape_[size_t(k)];
-                const Complex c = {m * rng_.bipolar(), m * rng_.bipolar()};
+                const Complex c = {m * noiseRng_.bipolar(), m * noiseRng_.bipolar()};
                 noiseBins_[size_t(k)] = c;
                 energy += std::norm(c);
             }
@@ -639,7 +640,7 @@ private:
     float mixNow_ = 1.0f, outNow_ = 1.0f, outLevel_ = 0.0f;
     double subPhase_ = 0.0;
     std::array<Svf, 2> tone_{};
-    Rng rng_;
+    Rng rng_, noiseRng_{0x2545F491u};  // the breath has its own: it never changes which grains SPRAY picks
     Readout readout_;
 };
 
