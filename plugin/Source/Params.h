@@ -52,7 +52,8 @@ inline float formantShift(float t) { return -12.0f + 24.0f * t; }
 inline float detuneCents(float t) { return 50.0f * t * t; }                     // 0 .. 50 cents
 inline float sprayS(float t) { return 2.0f * t * t; }                           // 0 .. 2 s
 inline float grainS(float t) { return 0.02f * std::pow(25.0f, t); }            // 20 .. 500 ms
-inline float releaseS(float t) { return 0.03f * std::pow(1000.0f / 30.0f, t); }  // 30 ms .. 1 s
+// RELEASE as shown: the time to fall 30 dB after the input stops (50 ms .. 4 s).
+inline float releaseS(float t) { return 0.05f * std::pow(80.0f, t); }
 inline float gateDb(float t) { return -90.0f + 70.0f * t; }                    // -90 .. -20 dB
 inline float threshold(float t) { return 0.05f + 0.3f * t; }                   // YIN threshold
 inline float subGain(float t) { return t <= 0.0f ? 0.0f : std::pow(10.0f, (-36.0f + 36.0f * t) / 20.0f); }
@@ -65,14 +66,19 @@ inline float tNote(float midi) { return (midi - 24.0f) / 72.0f; }
 inline float tDetune(float c) { return std::sqrt(c / 50.0f); }
 inline float tSpray(float s) { return std::sqrt(s / 2.0f); }
 inline float tGrain(float s) { return std::log(s / 0.02f) / std::log(25.0f); }
-inline float tRelease(float s) { return std::log(s / 0.03f) / std::log(1000.0f / 30.0f); }
+inline float tRelease(float s) { return std::log(s / 0.05f) / std::log(80.0f); }
 inline float tGate(float db) { return (db + 90.0f) / 70.0f; }
 inline float tSub(float db) { return (db + 36.0f) / 36.0f; }
 inline float tTone(float hz) { return std::log(hz / 200.0f) / std::log(100.0f); }
 inline float tBipolar(float v) { return 0.5f + 0.5f * v; }  // -1..1
 
 inline const std::vector<std::string> kPitchModes = {"Track", "Fixed"};
-inline const std::vector<std::string> kScales = {"Off", "Chromatic", "Major", "Minor", "Pentatonic", "Harm. minor", "Dorian"};
+inline const std::vector<std::string> kScales = [] {
+    std::vector<std::string> list;
+    for (int s = 0; s < kScaleCount; ++s) list.push_back(scaleName(s));
+    return list;
+}();
+inline const std::vector<std::string> kBreathModes = {"Flute", "Air", "Whisper", "Input"};
 inline const std::vector<std::string> kKeys = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 inline const std::vector<std::string> kVoices = {"1", "2", "3", "4", "5", "6", "7", "8"};
 inline const std::vector<std::string> kLatency = {"Aligned", "Live"};
@@ -112,13 +118,14 @@ inline const std::vector<Spec>& all() {
         {"grain", "Grain", Kind::Float, tGrain(0.12f), {}, [](float t) { return msText(grainS(t)); }},
         {"freeze", "Freeze", Kind::Bool, 0.0f},
         // DYNAMICS
-        {"release", "Release", Kind::Float, tRelease(0.12f), {}, [](float t) { return msText(releaseS(t)); }},
+        {"release", "Release", Kind::Float, tRelease(0.4f), {}, [](float t) { return msText(releaseS(t)); }},
         {"gate", "Gate", Kind::Float, tGate(-60.0f), {}, [](float t) { return fmt("%.0f dB", gateDb(t)); }},
         {"voiced", "Voiced Only", Kind::Float, 0.5f, {}, pct},
         {"sensitivity", "Sensitivity", Kind::Float, 1.0f / 3.0f, {}, pct},
         // COLOR
         {"sub", "Sub", Kind::Float, 0.0f, {}, [](float t) { return t <= 0.0f ? std::string("off") : fmt("%+.1f dB", -36.0 + 36.0 * t); }},
         {"breath", "Breath", Kind::Float, 0.15f, {}, pct},
+        {"breath_mode", "Breath Mode", Kind::Choice, 0.0f, kBreathModes},
         {"tone", "Tone", Kind::Float, 1.0f, {}, [](float t) { return t >= 1.0f ? std::string("open") : hzText(toneHz(t)); }},
         {"drive", "Drive", Kind::Float, 0.0f, {}, pct},
     };
@@ -139,7 +146,7 @@ inline Settings toSettings(const float* v) {
         std::vector<int> map;
         for (const char* id : {"mix", "output", "latency", "pitch_mode", "transpose", "fine", "glide", "quantize", "key", "fixed_note",
                                "table", "position", "track", "formant", "formant_shift", "voices", "detune", "spread", "width", "spray",
-                               "grain", "freeze", "release", "gate", "voiced", "sensitivity", "sub", "breath", "tone", "drive"})
+                               "grain", "freeze", "release", "gate", "voiced", "sensitivity", "sub", "breath", "tone", "drive", "breath_mode"})
             map.push_back(indexOf(id));
         return map;
     }();
@@ -167,7 +174,7 @@ inline Settings toSettings(const float* v) {
     s.sprayS = sprayS(f(19));
     s.grainS = grainS(f(20));
     s.freeze = c(21) != 0;
-    s.releaseS = releaseS(f(22));
+    s.releaseS = std::max(0.025f, releaseS(f(22)) / 3.45f);  // the follower's time constant: -30 dB in 3.45 of them
     s.gateDb = gateDb(f(23));
     s.voiced = f(24);
     s.threshold = threshold(f(25));
@@ -175,6 +182,7 @@ inline Settings toSettings(const float* v) {
     s.breath = f(27);
     s.toneHz = toneHz(f(28));
     s.drive = f(29);
+    s.breathMode = c(30);
     return s;
 }
 

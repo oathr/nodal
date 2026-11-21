@@ -44,7 +44,9 @@ Result runFor(juce::AudioPluginInstance& p, double seconds, int block, double ra
     Result r;
     juce::AudioBuffer<float> buffer(2, 2048);
     juce::MidiBuffer midi;
-    const auto params = ownParameters(p);
+    // Automation: only what a host may automate (a latency switch is not).
+    auto params = ownParameters(p);
+    params.erase(std::remove_if(params.begin(), params.end(), [](auto* q) { return !q->isAutomatable(); }), params.end());
     const int total = int(seconds * rate);
     for (int done = 0; done < total;) {
         const int n = varyBlocks ? 1 + rng.nextInt(2048) : block;

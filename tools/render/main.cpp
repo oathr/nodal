@@ -208,13 +208,57 @@ void measureCpu() {
     }
 }
 
+// BREATH alone (a render with it minus the same render without: the synth is deterministic),
+// its spectral centroid and its share above 4 kHz, per mode.
+void measureBreath() {
+    std::printf("\n== Breath colour (A4 voice-like source, breath alone) ==\n");
+    const char* names[] = {"Flute", "Air", "Whisper", "Input"};
+    for (int mode = 0; mode < 4; ++mode) {
+        const Stereo source = voiceLike(48000.0f, {69, 69}, 1.0f, -14.0f);
+        Stereo with = source, without = source;
+        for (Stereo* s : {&with, &without}) {
+            Engine e;
+            e.prepare(48000.0f);
+            e.setSettings(Setup(0).set("breath", s == &with ? 1.0f : 0.0f).set("breath_mode", float(mode)).set("voices", 0).settings());
+            render(e, *s);
+        }
+        const int n = 32768;
+        RealFft fft;
+        fft.prepare(n);
+        std::vector<float> x(static_cast<size_t>(n));
+        for (int i = 0; i < n; ++i)
+            x[size_t(i)] = (with.left[size_t(48000 + i)] - without.left[size_t(48000 + i)]) * (0.5f - 0.5f * std::cos(kTwoPi * float(i) / float(n)));
+        std::vector<Complex> X(size_t(fft.bins()));
+        fft.forward(x.data(), X.data());
+        double num = 0, den = 0, high = 0, harm = 0;
+        for (int k = 1; k < n / 2; ++k) {
+            const double p = std::norm(X[size_t(k)]), hz = double(k) * 48000.0 / n;
+            num += p * hz, den += p;
+            if (hz > 4000.0) high += p;
+            const double h = hz / 440.0;
+            if (std::abs(h - std::round(h)) < 0.05 && h > 0.5 && hz < 9000.0) harm += p;
+        }
+        std::printf("  %-8s centroid %5.0f Hz, above 4 kHz %4.1f %%, within 5 %% of a harmonic %4.1f %%\n", names[mode], num / den,
+                    100.0 * high / den, 100.0 * harm / den);
+    }
+}
+
+void measurePresets() {
+    std::printf("\n== Presets ==\n");
+    int unknown = 0;
+    for (const auto& p : presets::all())
+        for (const auto& [id, v] : p.values)
+            if (params::indexOf(id) < 0) ++unknown, std::printf("  %s: unknown parameter %s\n", p.name, id);
+    std::printf("  %zu presets, %d unknown parameter(s)\n", presets::all().size(), unknown);
+}
+
 void measureSafety() {
     std::printf("\n== Safety (white noise 0 dBFS, silence, every preset) ==\n");
     int bad = 0;
     for (size_t p = 0; p < presets::all().size(); ++p) {
         Stereo in;
         in.sampleRate = 48000.0f;
-        in.resize(48000 * 5);  // 1 s of noise, then 4 s of silence
+        in.resize(48000 * 9);  // 1 s of noise, then 8 s of silence (the longest release reaches -60 dB in 6 s)
         Rng rng;
         for (size_t i = 0; i < 48000; ++i) in.left[i] = rng.bipolar(), in.right[i] = rng.bipolar();
         Engine e;
@@ -227,12 +271,12 @@ void measureSafety() {
             for (const float s : {in.left[i], in.right[i]}) {
                 finite &= std::isfinite(s);
                 peak = std::max(peak, std::abs(s));
-                if (i > in.size() * 9 / 10) tail = std::max(tail, std::abs(s));
+                if (i > in.size() * 8 / 9) tail = std::max(tail, std::abs(s));
             }
         }
         if (!finite || peak > 1.0f || tail > 1.0e-3f) {
             ++bad;
-            std::printf("  preset %zu %s: finite %d, peak %.3f, tail after 3.5 s of silence %.5f\n", p, presets::all()[p].name, int(finite), peak, tail);
+            std::printf("  preset %zu %s: finite %d, peak %.3f, tail after 7 s of silence %.5f\n", p, presets::all()[p].name, int(finite), peak, tail);
         }
     }
     std::printf("  %s\n", bad ? "FAILURES above" : "all presets finite, under 0 dBFS, silent after the input stops");
@@ -267,7 +311,36 @@ int main(int argc, char** argv) {
         measureLevel();
         measureAliasing();
         measureCpu();
+        measureBreath();
+        measurePresets();
         measureSafety();
+        return 0;
+    }
+    if (argc >= 2 && !std::strcmp(argv[1], "--stress")) {  // random automation; reports the slow blocks
+        const float rate = 96000.0f;
+        const int block = 512;
+        Engine e;
+        e.prepare(rate);
+        Setup setup(0);
+        Rng rng;
+        std::vector<float> l(block), r(block);
+        const auto& specs = params::all();
+        for (int b = 0; b < int(30.0f * rate / block); ++b) {
+            std::string changed;
+            if (rng.uniform() < 0.2f) {
+                const size_t i = size_t(rng.next() % specs.size());
+                float v = rng.uniform();
+                if (specs[i].kind != params::Kind::Float) v = float(rng.next() % std::max<size_t>(2, specs[i].choices.size()));
+                setup.values[i] = v;
+                changed = specs[i].id + "=" + std::to_string(v);
+            }
+            for (int k = 0; k < block; ++k) l[size_t(k)] = r[size_t(k)] = rng.bipolar() * 0.5f;
+            e.setSettings(setup.settings());
+            const auto t0 = std::chrono::steady_clock::now();
+            e.process(l.data(), r.data(), block);
+            const double ms = 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+            if (ms > 1.0) std::printf("block %5d: %6.2f ms  %s\n", b, ms, changed.c_str());
+        }
         return 0;
     }
     if (argc >= 3 && !std::strcmp(argv[1], "--source")) {  // the voice-like test phrase, as a file

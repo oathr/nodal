@@ -17,11 +17,13 @@ Every 5.3 ms (one *hop*) the input is analysed and drives up to eight wavetable 
 | **Level** | Sample-by-sample envelope follower (1 ms attack, RELEASE), turned into an RMS by the input's own crest factor | wet within 0.9 dB of the input, -30 to -6 dBFS, 1 to 8 voices |
 | **Voices** | Each voice rebuilds its single cycle once per hop from the table's harmonic spectra: only harmonics under 0.45 × the sample rate (band-limited by construction), shaped by the input's formants (FORMANT), normalised to RMS 1, crossfaded over the hop | off-harmonic energy ≤ -49 dB from C4 to G7 (saw, sync ×8, 3-step digital) |
 | **Spray** | Each voice reads its own moment of the last 2 s, grain by grain (Tukey window, staggered starts): a phrase becomes a cloud of its own notes. FREEZE holds one moment | |
-| **Breath** | What is not periodic (breath, bow, consonants) is resynthesised as noise with the input's envelope, louder when the input is less periodic | |
+| **Breath** | What is not periodic (breath, bow, consonants) is resynthesised as noise, louder when the input is less periodic. Four colours: FLUTE (jet noise in narrow bands on the synth's own harmonics, over a soft hiss), AIR (bright hiss), WHISPER (the input's vowels), INPUT (the input's own spectrum, the darkest) | spectral centroid on an A4 voice: FLUTE 3.5 kHz (31 % of the energy on the harmonics, 7 % for plain noise), AIR 7.3 kHz, WHISPER 1.3 kHz, INPUT 0.7 kHz |
 
 **Latency.** ALIGNED (default) delays the dry and the envelope by half an analysis window
 (1024 samples at 48 kHz, 21 ms), reported to the host: the synth lands on the notes and the
 DAW compensates. LIVE adds nothing, for playing through it (the synth then lags ~25 ms).
+The switch is not automatable: every latency change restarts the plugin in the host
+(automated, it stalled the audio for milliseconds in the host test).
 
 **CPU** (host test, one core of an i7-12700KF): 1.5 – 3 % on average at 44.1 / 48 kHz,
 2.5 – 4 % at 96 kHz. Worst single block: 16 % of its budget at 48 kHz / 64 samples, 48 % at
@@ -35,16 +37,31 @@ playing's dynamics and brightness.
 
 | Section | Controls |
 |---|---|
-| **PITCH** | TRACK / FIXED, TRANSPOSE (±24 st), FINE, GLIDE, QUANTIZE (chromatic, major, minor, pentatonic, harmonic minor, dorian) and KEY, FIXED NOTE |
+| **PITCH** | TRACK / FIXED, TRANSPOSE (±24 st), FINE, GLIDE, QUANTIZE (Off, Chromatic and the 35 scales of Ableton Live's list, from Major to Messiaen 7) and KEY, FIXED NOTE |
 | **TABLE** | 12 factory tables or your own, POSITION, TRACK (the input's brightness moves the position), FORMANT (imprint of the input's formants), FORMANT SHIFT |
 | **UNISON** | VOICES 1 – 8, DETUNE, WT SPREAD (each voice at another position), WIDTH |
 | **SPRAY** | SPRAY (how far back, up to 2 s), GRAIN (20 – 500 ms), FREEZE |
-| **DYNAMICS** | RELEASE, GATE, VOICED ONLY (mutes the synth on unpitched sounds), SENSITIVITY (pitch detection threshold) |
-| **COLOR** | SUB (sine an octave down), BREATH, TONE (low-pass), DRIVE |
+| **DYNAMICS** | RELEASE (time to fall 30 dB, 50 ms – 4 s), GATE, VOICED ONLY (mutes the synth on unpitched sounds), SENSITIVITY (pitch detection threshold) |
+| **COLOR** | BREATH and its mode (FLUTE / AIR / WHISPER / INPUT), SUB (sine an octave down), TONE (low-pass), DRIVE |
 | **OUTPUT** | ALIGNED / LIVE, OUTPUT, MIX |
 
-Gestures: drag (Shift for fine), click on a bar to jump, mouse wheel, double-click a value to
-type it, Ctrl-click to reset.
+60 presets: BASE, VOIX, SOUFFLE, CORDES, GUITARE, LEAD, PAD, TEXTURE, FX.
+
+Gestures (those of STASIS, and more):
+
+| Gesture | Effect |
+|---|---|
+| Drag (left / right or up / down) | moves the control; a click on a bar jumps there |
+| Shift or Ctrl while dragging, scrolling or stepping | 10× finer, can be pressed mid-drag without a jump |
+| Mouse wheel | 1 % a notch; on a menu or a switch, the next choice |
+| ↑ ↓ over a control (or focused) | 1 % a step, 0.1 % with Shift / Ctrl; Home / End: min / max; Delete: default |
+| Double-click | back to the default |
+| Double-click the value (or Enter) | type it: "70", "-12", "2 s", "350 ms", "4.5k", "C3", "off" |
+| Right-click | default, type a value, minimum, maximum; the choices of a menu |
+| Open menu | ↑ ↓ Enter Escape, and letters to jump ("hi" → Hirajoshi) |
+| ← → | previous / next wavetable |
+
+The line at the bottom of the window says what the hovered control does.
 
 ### Your wavetables
 
@@ -59,7 +76,8 @@ without the file.
 
 ## The interface
 
-A Chladni plate: 65 536 grains of sand on a square plate, kicked where the plate moves and
+Black with film grain (like STASIS), pastel section blocks. In the centre, in black and white,
+a Chladni plate: 65 536 grains of sand on a square plate, kicked where the plate moves and
 sliding towards where it does not, gathering on the nodal lines. The synth's pitch chooses the
 modes (higher notes, denser figures), its first harmonics weigh them, the table position flips
 the figure's symmetry, the output level shakes the plate. WebGL2, simulated on the GPU.
@@ -95,7 +113,7 @@ build-render\Release\nodal_render.exe --all input.wav renders\
 |---|---|
 | `dsp/include/nodal/` | The DSP, C++20, header-only, no dependency: `fft` (radix-2 real FFT), `analyzer` (YIN, envelope, history), `wavetable` (spectra, factory tables, file loading), `engine` |
 | `plugin/Source/Params.h` | Every parameter, its unit and label (copied in `design/ui.html`) |
-| `plugin/Source/Presets.h` | 17 factory presets |
+| `plugin/Source/Presets.h` | 60 factory presets |
 | `plugin/Source/Plugin*.cpp` | JUCE 8 processor (folder browsing, state) and WebView editor |
 | `plugin/HostTest/` | `nodal_hosttest`: loads the VST3 like a DAW and stresses it |
 | `tools/render/` | `nodal_render`: measurements and renders |

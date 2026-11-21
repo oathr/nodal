@@ -14,7 +14,7 @@ juce::String groupOf(const std::string& id) {
         {{"voices", "detune", "spread", "width"}, "UNISON"},
         {{"spray", "grain", "freeze"}, "SPRAY"},
         {{"release", "gate", "voiced", "sensitivity"}, "DYNAMICS"},
-        {{"sub", "breath", "tone", "drive"}, "COLOR"}};
+        {{"sub", "breath", "breath_mode", "tone", "drive"}, "COLOR"}};
     for (const auto& [ids, name] : groups)
         if (std::find(ids.begin(), ids.end(), id) != ids.end()) return name;
     return "OUTPUT";
@@ -61,7 +61,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout() {
             case Kind::Choice: {
                 juce::StringArray choices;
                 for (const auto& c : s.choices) choices.add(c);
-                group->addChild(std::make_unique<juce::AudioParameterChoice>(id, juce::String(s.name), choices, int(s.defaultValue)));
+                // ALIGNED / LIVE changes the latency, and every change restarts the plugin in
+                // the host: not automatable (measured: automated, it stalled the audio for ms).
+                const auto attributes = juce::AudioParameterChoiceAttributes().withAutomatable(s.id != "latency");
+                group->addChild(std::make_unique<juce::AudioParameterChoice>(id, juce::String(s.name), choices, int(s.defaultValue), attributes));
                 break;
             }
         }

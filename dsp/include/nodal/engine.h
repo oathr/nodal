@@ -18,6 +18,73 @@ namespace nodal {
 //    dynamics stay the performer's.
 // Latency: ALIGNED delays the dry and the envelope by half an analysis window (1024 samples
 // at 48 kHz, reported to the host), so the synth sits on the notes; LIVE adds none.
+// QUANTIZE: Off, Chromatic, then the scales of Ableton Live's list, in its order. Degrees in
+// semitones from the key (-1 ends a list).
+constexpr int kScaleCount = 37;
+inline const char* scaleName(int s) {
+    static const char* names[kScaleCount] = {
+        "Off", "Chromatic", "Major", "Minor", "Dorian", "Mixolydian", "Lydian", "Phrygian", "Locrian", "Whole Tone",
+        "Half-whole Dim.", "Whole-half Dim.", "Minor Blues", "Minor Pentatonic", "Major Pentatonic", "Harmonic Minor",
+        "Harmonic Major", "Dorian #4", "Phrygian Dominant", "Melodic Minor", "Lydian Augmented", "Lydian Dominant",
+        "Super Locrian", "8-Tone Spanish", "Bhairav", "Hungarian Minor", "Hirajoshi", "In-Sen", "Iwato", "Kumoi",
+        "Pelog Selisir", "Pelog Tembung", "Messiaen 3", "Messiaen 4", "Messiaen 5", "Messiaen 6", "Messiaen 7"};
+    return names[std::clamp(s, 0, kScaleCount - 1)];
+}
+inline std::array<int, 12> scaleDegrees(int s) {
+    static const std::array<int, 12> d[kScaleCount] = {
+        {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},  // Off
+        {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11},            // Chromatic
+        {0, 2, 4, 5, 7, 9, 11, -1},                         // Major
+        {0, 2, 3, 5, 7, 8, 10, -1},                         // Minor
+        {0, 2, 3, 5, 7, 9, 10, -1},                         // Dorian
+        {0, 2, 4, 5, 7, 9, 10, -1},                         // Mixolydian
+        {0, 2, 4, 6, 7, 9, 11, -1},                         // Lydian
+        {0, 1, 3, 5, 7, 8, 10, -1},                         // Phrygian
+        {0, 1, 3, 5, 6, 8, 10, -1},                         // Locrian
+        {0, 2, 4, 6, 8, 10, -1},                            // Whole Tone
+        {0, 1, 3, 4, 6, 7, 9, 10, -1},                      // Half-whole Dim.
+        {0, 2, 3, 5, 6, 8, 9, 11, -1},                      // Whole-half Dim.
+        {0, 3, 5, 6, 7, 10, -1},                            // Minor Blues
+        {0, 3, 5, 7, 10, -1},                               // Minor Pentatonic
+        {0, 2, 4, 7, 9, -1},                                // Major Pentatonic
+        {0, 2, 3, 5, 7, 8, 11, -1},                         // Harmonic Minor
+        {0, 2, 4, 5, 7, 8, 11, -1},                         // Harmonic Major
+        {0, 2, 3, 6, 7, 9, 10, -1},                         // Dorian #4
+        {0, 1, 4, 5, 7, 8, 10, -1},                         // Phrygian Dominant
+        {0, 2, 3, 5, 7, 9, 11, -1},                         // Melodic Minor
+        {0, 2, 4, 6, 8, 9, 11, -1},                         // Lydian Augmented
+        {0, 2, 4, 6, 7, 9, 10, -1},                         // Lydian Dominant
+        {0, 1, 3, 4, 6, 8, 10, -1},                         // Super Locrian
+        {0, 1, 3, 4, 5, 6, 8, 10, -1},                      // 8-Tone Spanish
+        {0, 1, 4, 5, 7, 8, 11, -1},                         // Bhairav
+        {0, 2, 3, 6, 7, 8, 11, -1},                         // Hungarian Minor
+        {0, 2, 3, 7, 8, -1},                                // Hirajoshi
+        {0, 1, 5, 7, 10, -1},                               // In-Sen
+        {0, 1, 5, 6, 10, -1},                               // Iwato
+        {0, 2, 3, 7, 9, -1},                                // Kumoi
+        {0, 1, 3, 7, 8, -1},                                // Pelog Selisir
+        {0, 1, 5, 7, 8, -1},                                // Pelog Tembung
+        {0, 2, 3, 4, 6, 7, 8, 10, 11, -1},                  // Messiaen 3
+        {0, 1, 2, 5, 6, 7, 8, 11, -1},                      // Messiaen 4
+        {0, 1, 5, 6, 7, 11, -1},                            // Messiaen 5
+        {0, 2, 4, 5, 6, 8, 10, 11, -1},                     // Messiaen 6
+        {0, 1, 2, 3, 5, 6, 7, 8, 9, 11, -1},                // Messiaen 7
+    };
+    auto out = d[std::clamp(s, 0, kScaleCount - 1)];
+    // Brace lists shorter than 12 leave zeros after the -1: everything after it is unused.
+    bool ended = false;
+    for (auto& x : out) {
+        if (ended) x = -1;
+        if (x < 0) ended = true;
+    }
+    return out;
+}
+
+// BREATH spectra: FLUTE (jet noise in narrow bands on the synth's harmonics, over a soft
+// airy hiss), AIR (bright hiss, a breathy voice), WHISPER (the input's vowels without its
+// tilt), INPUT (the input's own spectrum, tilt included: the darkest).
+enum class BreathMode { Flute = 0, Air, Whisper, Input };
+
 struct Settings {
     float mix = 1.0f, outputGain = 1.0f;
     bool aligned = true;
@@ -33,6 +100,7 @@ struct Settings {
     bool freeze = false;
     float releaseS = 0.12f, gateDb = -60.0f, voiced = 0.5f, threshold = 0.15f;
     float sub = 0.0f, breath = 0.15f, toneHz = 0.0f, drive = 0.0f;
+    int breathMode = 0;  // BreathMode
 };
 
 class Engine {
@@ -58,6 +126,17 @@ public:
         for (int k = 0; k <= noiseSize_ / 2; ++k)
             noiseEnvIndex_[size_t(k)] = envIndexOfLog2(std::log2(std::max(1.0f, float(k) * sampleRate / float(noiseSize_))));
         for (auto& o : noiseOla_) o.assign(size_t(noiseSize_), 0.0f);
+        noiseShape_.assign(size_t(noiseSize_ / 2 + 1), 0.0f);
+        noiseAir_.resize(size_t(noiseSize_ / 2 + 1));
+        noiseFluteTop_.resize(size_t(noiseSize_ / 2 + 1));
+        for (int k = 0; k <= noiseSize_ / 2; ++k) {
+            const float f = std::max(1.0f, float(k) * sampleRate / float(noiseSize_));
+            // Air: 12 dB/oct high-pass at 900 Hz, +3 dB/oct up to 6 kHz, 24 dB/oct roll-off from 13 kHz.
+            const float hp = std::pow(f / 900.0f, 4.0f), lift = std::sqrt(std::min(f, 6000.0f) / 1000.0f);
+            noiseAir_[size_t(k)] = hp / (1.0f + hp) * lift / (1.0f + std::pow(f / 13000.0f, 4.0f));
+            // The flute's jet noise on the harmonics fades out above 6 kHz.
+            noiseFluteTop_[size_t(k)] = 1.0f / (1.0f + std::pow(f / 6000.0f, 4.0f));
+        }
         delaySize_ = analyzer_.windowSize() / 2 + 1;
         for (auto& d : delay_) d.assign(size_t(delaySize_), 0.0f);
         for (int k = 0; k <= kHarmonics; ++k) log2k_[size_t(k)] = k > 0 ? std::log2(float(k)) : 0.0f;
@@ -262,10 +341,15 @@ private:
     }
 
     static bool inScale(int quantize, int note, int key) {
-        static const uint16_t masks[] = {0x000, 0xFFF, 0xAB5, 0x5AD, 0x295, 0x9AD, 0x6AD};
-        //                               off  chrom major  minor penta  h.min dorian  (bit i = degree i)
+        static const auto masks = [] {
+            std::array<uint16_t, kScaleCount> m{};
+            for (int s = 0; s < kScaleCount; ++s)
+                for (const int degree : scaleDegrees(s))
+                    if (degree >= 0) m[size_t(s)] |= uint16_t(1u << degree);
+            return m;
+        }();
         const int degree = ((note - key) % 12 + 12) % 12;
-        return (masks[std::clamp(quantize, 0, 6)] >> degree) & 1;
+        return (masks[size_t(std::clamp(quantize, 0, kScaleCount - 1))] >> degree) & 1;
     }
     float quantise(Voice& v, float midi) const {
         const Settings& s = settings_;
@@ -306,7 +390,9 @@ private:
         voicedStart_ = voicedEnd_;
         voicedEnd_ = 1.0f - s.voiced * (1.0f - periodic);
         breathStart_ = breathEnd_;
-        breathEnd_ = s.breath * (0.35f + 0.65f * (1.0f - periodic));
+        // A flute breathes under every note; a voice mostly between them.
+        const float steady = s.breathMode == int(BreathMode::Flute) ? 0.75f : s.breathMode == int(BreathMode::Air) ? 0.5f : 0.35f;
+        breathEnd_ = s.breath * (steady + (1.0f - steady) * (1.0f - periodic));
         if (first) gateStart_ = gateEnd_, voicedStart_ = voicedEnd_, breathStart_ = breathEnd_;
 
         // Output stage coefficients.
@@ -469,24 +555,41 @@ private:
         }
     }
 
-    // BREATH: noise with the input's spectral envelope (its real tilt back in), one frame
-    // per hop, Hann overlap-add at 75 %: what is not periodic in the input (breath, bow,
-    // consonants) stays in the synth. Two channels of independent noise.
+    // BREATH: shaped noise, one frame per hop, Hann overlap-add at 75 %, two channels of
+    // independent noise. The shape depends on the mode (see BreathMode); every shape is
+    // normalised to the same energy, so the modes change the colour, not the level.
     void addNoise(const Frame& frame) {
         const Settings& s = settings_;
+        const auto mode = BreathMode(std::clamp(s.breathMode, 0, 3));
+        const float tilt = mode == BreathMode::Input ? frame.tiltB : 0.0f;
+        const float envAmount = mode == BreathMode::Air ? 0.3f : mode == BreathMode::Flute ? 0.0f : 1.0f;
         for (int i = 0; i < kEnvPoints; ++i) {
-            const float db = frame.env[size_t(i)] + frame.tiltB * std::log2(envPointHz(i) / 1000.0f);
+            const float db = envAmount * frame.env[size_t(i)] + tilt * std::log2(envPointHz(i) / 1000.0f);
             envGain_[size_t(i)] = std::exp2(db / 6.0206f);
         }
         const float shift = s.formantShift * float(kEnvPoints - 1) / (12.0f * 9.965784f);  // semitones -> points
         const int bins = noiseSize_ / 2;
+        const float binHz = sampleRate_ / float(noiseSize_);
+        // FLUTE: the synth's own note (voice 1), so the breath sits on what is heard.
+        const float f0 = std::max(30.0f, voices_[0].incEnd * sampleRate_);
+        const float width = std::max(0.1f, 0.75f * binHz / f0);  // in harmonics
+        for (int k = 1; k < bins; ++k) {
+            const float idx = std::clamp(noiseEnvIndex_[size_t(k)] - shift, 0.0f, float(kEnvPoints - 1) - 0.001f);
+            const int j = int(idx);
+            float m = envGain_[size_t(j)] + (idx - float(j)) * (envGain_[size_t(j + 1)] - envGain_[size_t(j)]);
+            if (mode == BreathMode::Air) m *= noiseAir_[size_t(k)];
+            else if (mode == BreathMode::Flute) {
+                const float h = float(k) * binHz / f0, n = std::round(h), d = (h - n) / width;
+                const float comb = n >= 1.0f ? std::exp(-d * d) * noiseFluteTop_[size_t(k)] / std::sqrt(n) : 0.0f;
+                m = comb + 0.035f * noiseAir_[size_t(k)];
+            }
+            noiseShape_[size_t(k)] = m;
+        }
         for (int ch = 0; ch < 2; ++ch) {
             float energy = 0.0f;
             noiseBins_[0] = noiseBins_[size_t(bins)] = Complex{};
             for (int k = 1; k < bins; ++k) {
-                const float idx = std::clamp(noiseEnvIndex_[size_t(k)] - shift, 0.0f, float(kEnvPoints - 1) - 0.001f);
-                const int j = int(idx);
-                const float m = envGain_[size_t(j)] + (idx - float(j)) * (envGain_[size_t(j + 1)] - envGain_[size_t(j)]);
+                const float m = noiseShape_[size_t(k)];
                 const Complex c = {m * rng_.bipolar(), m * rng_.bipolar()};
                 noiseBins_[size_t(k)] = c;
                 energy += std::norm(c);
@@ -523,7 +626,7 @@ private:
     Built lastBuilt_;
     RealFft cycleFft_, noiseFft_;
     std::vector<Complex> bins_, noiseBins_;
-    std::vector<float> wave_, noiseFrame_, noiseWindow_, noiseEnvIndex_;
+    std::vector<float> wave_, noiseFrame_, noiseWindow_, noiseEnvIndex_, noiseShape_, noiseAir_, noiseFluteTop_;
     std::array<std::vector<float>, 2> noiseOla_, delay_;
     std::array<float, kHarmonics + 1> log2k_{};
     std::array<float, kEnvPoints> envGain_{};
