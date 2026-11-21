@@ -322,6 +322,32 @@ void measureSafety() {
     std::printf("  %s\n", bad ? "FAILURES above" : "all presets finite, under 0 dBFS, silent after the input stops");
 }
 
+// RANGE: a line over four octaves with octave leaps; where the synth's notes land.
+void measureRange() {
+    std::printf("\n== RANGE (line C2..C6 with octave leaps, synth note read every 256 samples) ==\n");
+    const std::vector<float> line = {36, 48, 60, 72, 84, 72, 60, 64, 67, 79, 55, 43, 62, 74, 50, 69, 81, 57, 45, 60};
+    struct Case { const char* name; float lo, hi; };
+    for (const Case c : {Case{"off", 12, 108}, Case{"C3-C4 (1 oct)", 48, 60}, Case{"C3-C5 (2 oct)", 48, 72}, Case{"A2-A5 (3 oct)", 45, 81}}) {
+        Stereo in = voiceLike(48000.0f, line, 0.5f, -12.0f);
+        Engine e;
+        e.prepare(48000.0f);
+        e.setSettings(Setup(0).set("range_low", params::tRange(c.lo)).set("range_high", params::tRange(c.hi)).set("glide", 0.0f).settings());
+        float lowest = 200.0f, highest = -200.0f, last = -1.0f;
+        int leaps = 0, outside = 0, reads = 0;
+        for (size_t at = 0; at + 256 <= in.size(); at += 256) {
+            e.process(in.left.data() + at, in.right.data() + at, 256);
+            if (at < 9600 || e.readout().confidence.load() < 0.6f) continue;
+            const float m = e.readout().midi[0].load();
+            lowest = std::min(lowest, m), highest = std::max(highest, m);
+            if (m < c.lo - 1.01f || m > c.hi + 1.01f) ++outside;
+            if (last > 0.0f && std::abs(m - last) > 9.0f) ++leaps;
+            last = m;
+            ++reads;
+        }
+        std::printf("  %-14s synth from %5.1f to %5.1f, %3d leaps of 9+ semitones, %d of %d reads outside\n", c.name, lowest, highest, leaps, outside, reads);
+    }
+}
+
 int renderFile(const std::string& inPath, const std::string& outPath, const Setup& setup) {
     Stereo audio;
     std::string error;
@@ -354,6 +380,7 @@ int main(int argc, char** argv) {
         measureBreath();
         measurePresets();
         measurePresetBreath();
+        measureRange();
         measureSafety();
         return 0;
     }

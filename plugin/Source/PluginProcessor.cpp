@@ -9,7 +9,7 @@ namespace {
 // and typing a value back ("-12 st", "300 ms") finds the position that shows it.
 juce::String groupOf(const std::string& id) {
     static const std::vector<std::pair<std::vector<std::string>, const char*>> groups = {
-        {{"pitch_mode", "transpose", "fine", "glide", "quantize", "key", "fixed_note"}, "PITCH"},
+        {{"pitch_mode", "transpose", "fine", "glide", "quantize", "key", "fixed_note", "range_low", "range_high"}, "PITCH"},
         {{"table", "position", "track", "formant", "formant_shift"}, "TABLE"},
         {{"voices", "detune", "spread", "width"}, "UNISON"},
         {{"spray", "grain", "freeze"}, "SPRAY"},

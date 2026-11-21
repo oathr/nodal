@@ -29,6 +29,15 @@ The switch is not automatable: every latency change restarts the plugin in the h
 2.5 – 4 % at 96 kHz. Worst single block: 16 % of its budget at 48 kHz / 64 samples, 48 % at
 96 kHz / 64 samples (the block where a hop's analysis lands).
 
+**Range.** RANGE keeps the synth between two notes (at least an octave apart) by moving
+each note by whole octaves. The octave holds while the note stays within a semitone of the
+range, so a note on an edge does not flip back and forth; when it must change, the octave
+nearest the last note wins. With one octave, an octave slip of the tracker never reaches the
+synth. 1 / 2 / 3 OCT place the range on the KEY note, around the median of the notes played
+over the last 4 s (one wrong octave does not move it). On a line over four octaves with
+leaps (`--analyse`): 0 notes outside the range, 17 leaps of 9+ semitones with the range off,
+5 with one octave.
+
 **Monophonic.** The tracker follows one note at a time: chords confuse it (it finds a
 common root or jumps). For a chordal guitar, FIXED pitch mode keeps a drone that follows the
 playing's dynamics and brightness.
@@ -37,7 +46,7 @@ playing's dynamics and brightness.
 
 | Section | Controls |
 |---|---|
-| **PITCH** | TRACK / FIXED, TRANSPOSE (±24 st), FINE, GLIDE, QUANTIZE (Off, Chromatic and the 35 scales of Ableton Live's list, from Major to Messiaen 7) and KEY, FIXED NOTE |
+| **PITCH** | TRACK / FIXED, TRANSPOSE (±24 st), FINE, GLIDE, QUANTIZE (Off, Chromatic and the 35 scales of Ableton Live's list, from Major to Messiaen 7) and KEY, FIXED NOTE, RANGE |
 | **TABLE** | 12 factory tables or your own, POSITION, TRACK (the input's brightness moves the position), FORMANT (imprint of the input's formants), FORMANT SHIFT |
 | **UNISON** | VOICES 1 – 8, DETUNE, WT SPREAD (each voice at another position), WIDTH |
 | **SPRAY** | SPRAY (how far back, up to 2 s), GRAIN (20 – 500 ms), FREEZE |
@@ -60,6 +69,8 @@ Gestures (those of STASIS, and more):
 | Right-click | default, type a value, minimum, maximum; the choices of a menu |
 | Open menu | ↑ ↓ Enter Escape, and letters to jump ("hi" → Hirajoshi) |
 | ← → | previous / next wavetable |
+| RANGE | drag a handle, drag the band to move it, drag on the keys (when FULL) to draw a range, click outside to bring the nearest handle; wheel / ↑ ↓: the whole range by a semitone; type "C2 C5", "2 oct", "full"; double-click: FULL |
+| Plate | double-click: full window (Escape leaves); ◀ ▶, the wheel, 1 – 6, or ← → in full window: visual mode |
 
 The line at the bottom of the window says what the hovered control does.
 
@@ -81,6 +92,12 @@ a Chladni plate: 65 536 grains of sand on a square plate, kicked where the plate
 sliding towards where it does not, gathering on the nodal lines. The synth's pitch chooses the
 modes (higher notes, denser figures), its first harmonics weigh them, the table position flips
 the figure's symmetry, the output level shakes the plate. WebGL2, simulated on the GPU.
+
+Six visual modes, all from the same vibrating field: SAND (the square plate), DISC (a round
+plate: Bessel modes, circles and spokes), SILK (the grains flow along the level lines and
+leave trails), CONTOUR (the field as level lines), MOIRE (two ring gratings bent by the field
+in opposite directions), ECHO (the nodal lines fed back into themselves, zooming out).
+Double-click the plate to fill the window. The mode is remembered.
 
 `design/ui.html` also opens in a browser (`node dev/serve.js`, then http://localhost:8771/),
 with a simulated sung phrase.

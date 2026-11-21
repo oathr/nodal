@@ -48,6 +48,7 @@ inline int semitones(float t) { return int(std::lround(-24.0f + 48.0f * t)); }  
 inline float cents(float t) { return -100.0f + 200.0f * t; }
 inline float glideS(float t) { return 1.0f * t * t; }                           // 0 .. 1 s
 inline float fixedNote(float t) { return std::round(24.0f + 72.0f * t); }      // C1 .. C7
+inline float rangeNote(float t) { return std::round(12.0f + 96.0f * t); }      // C0 .. C8 (both ends: off)
 inline float formantShift(float t) { return -12.0f + 24.0f * t; }
 inline float detuneCents(float t) { return 50.0f * t * t; }                     // 0 .. 50 cents
 inline float sprayS(float t) { return 2.0f * t * t; }                           // 0 .. 2 s
@@ -63,6 +64,7 @@ inline float tOutput(float db) { return (db + 24.0f) / 36.0f; }
 inline float tSemitones(float st) { return (st + 24.0f) / 48.0f; }
 inline float tGlide(float s) { return std::sqrt(s); }
 inline float tNote(float midi) { return (midi - 24.0f) / 72.0f; }
+inline float tRange(float midi) { return (midi - 12.0f) / 96.0f; }
 inline float tDetune(float c) { return std::sqrt(c / 50.0f); }
 inline float tSpray(float s) { return std::sqrt(s / 2.0f); }
 inline float tGrain(float s) { return std::log(s / 0.02f) / std::log(25.0f); }
@@ -102,6 +104,8 @@ inline const std::vector<Spec>& all() {
         {"quantize", "Quantize", Kind::Choice, 0.0f, kScales},
         {"key", "Key", Kind::Choice, 0.0f, kKeys},
         {"fixed_note", "Fixed Note", Kind::Float, tNote(48.0f), {}, [](float t) { return noteName(fixedNote(t)); }},
+        {"range_low", "Range Low", Kind::Float, 0.0f, {}, [](float t) { return t <= 0.0f ? std::string("off") : noteName(rangeNote(t)); }},
+        {"range_high", "Range High", Kind::Float, 1.0f, {}, [](float t) { return t >= 1.0f ? std::string("off") : noteName(rangeNote(t)); }},
         // TABLE
         {"table", "Table", Kind::Choice, 0.0f, tableChoices()},
         {"position", "Position", Kind::Float, 0.25f, {}, pct},
@@ -146,7 +150,7 @@ inline Settings toSettings(const float* v) {
         std::vector<int> map;
         for (const char* id : {"mix", "output", "latency", "pitch_mode", "transpose", "fine", "glide", "quantize", "key", "fixed_note",
                                "table", "position", "track", "formant", "formant_shift", "voices", "detune", "spread", "width", "spray",
-                               "grain", "freeze", "release", "gate", "voiced", "sensitivity", "sub", "breath", "tone", "drive", "breath_mode"})
+                               "grain", "freeze", "release", "gate", "voiced", "sensitivity", "sub", "breath", "tone", "drive", "breath_mode", "range_low", "range_high"})
             map.push_back(indexOf(id));
         return map;
     }();
@@ -183,6 +187,8 @@ inline Settings toSettings(const float* v) {
     s.toneHz = toneHz(f(28));
     s.drive = f(29);
     s.breathMode = c(30);
+    s.rangeLow = rangeNote(f(31));
+    s.rangeHigh = rangeNote(f(32));
     return s;
 }
 

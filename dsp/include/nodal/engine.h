@@ -92,6 +92,7 @@ struct Settings {
     float transpose = 0.0f;  // semitones, fine included
     int quantize = 0, key = 0;
     float fixedNote = 48.0f, glideS = 0.02f;
+    float rangeLow = 12.0f, rangeHigh = 108.0f;  // RANGE (MIDI notes): octaves folded inside; C0..C8 = off
     int table = 0;  // factory index, or FactoryTables::count() for the user table
     float position = 0.25f, track = 0.0f, formant = 0.5f, formantShift = 0.0f;
     int voices = 3;
@@ -306,7 +307,7 @@ private:
         float incStart = 0.0f, incEnd = 0.0f;
         float gainStart = 0.0f, gainEnd = 0.0f;
         float midi = 60.0f, pos = 0.25f, panL = 1.0f, panR = 1.0f;
-        int lag = 0, grainLeft = 0, grainLength = 1, quantised = -1000;
+        int lag = 0, grainLeft = 0, grainLength = 1, quantised = -1000, octave = 0;
         float jitter = 0.0f;
         void reset() {
             a.fill(0.0f);
@@ -350,6 +351,29 @@ private:
         }();
         const int degree = ((note - key) % 12 + 12) % 12;
         return (masks[size_t(std::clamp(quantize, 0, kScaleCount - 1))] >> degree) & 1;
+    }
+    // RANGE: the note moved by whole octaves into [low, high] (an octave wide at least, so
+    // every note has a place). The octave sticks while the note stays within a semitone of
+    // the range, so a note on an edge does not flip back and forth; when it has to change,
+    // the placement nearest the voice's last note wins: no jump that is not needed. With a
+    // one-octave range an octave slip of the input never reaches the synth.
+    float fold(Voice& v, float midi) const {
+        const Settings& s = settings_;
+        float lo = std::min(s.rangeLow, s.rangeHigh), hi = std::max(s.rangeLow, s.rangeHigh);
+        if (lo <= 12.0f && hi >= 108.0f) {
+            v.octave = 0;
+            return midi;
+        }
+        if (hi - lo < 12.0f) hi = lo + 12.0f;
+        const float kept = midi + 12.0f * float(v.octave);
+        if (v.started && kept >= lo - 1.0f && kept <= hi + 1.0f) return kept;
+        const int kMin = int(std::ceil((lo - midi) / 12.0f)), kMax = int(std::floor((hi - midi) / 12.0f));
+        const float reference = v.started ? v.midi : 0.5f * (lo + hi);
+        int best = kMin;
+        for (int k = kMin + 1; k <= kMax; ++k)
+            if (std::abs(midi + 12.0f * float(k) - reference) < std::abs(midi + 12.0f * float(best) - reference)) best = k;
+        v.octave = best;
+        return midi + 12.0f * float(best);
     }
     float quantise(Voice& v, float midi) const {
         const Settings& s = settings_;
@@ -450,9 +474,9 @@ private:
                 vo.jitter = 0.0f;
             }
 
-            // Pitch: tracked (or fixed), transposed, quantised, glided, detuned.
+            // Pitch: tracked (or fixed), transposed, folded into RANGE, quantised, glided, detuned.
             float target = s.fixedPitch ? s.fixedNote : hzToMidi(frame->f0) + s.transpose;
-            if (!s.fixedPitch) target = quantise(vo, target);
+            if (!s.fixedPitch) target = quantise(vo, fold(vo, target));
             if (!vo.started) vo.midi = target;
             else vo.midi += glideCoef * (target - vo.midi);
             const float hz = std::clamp(midiToHz(vo.midi + spread * s.detuneCents * 0.01f), 8.0f, 0.45f * sampleRate_);
