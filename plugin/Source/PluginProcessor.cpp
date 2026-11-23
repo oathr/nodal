@@ -208,7 +208,7 @@ int NodalProcessor::detectFrameSize(const juce::File& file, int64_t length) {
                 const auto size = uint32_t(in.readInt());
                 if (std::memcmp(id, "clm ", 4) == 0 && size < 256) {
                     juce::MemoryBlock text;
-                    in.readIntoMemoryBlock(text, juce::ssize_t(size));
+                    in.readIntoMemoryBlock(text, int(size));  // under 256: no ssize_t needed (juce:: only has it on Windows)
                     const auto s = text.toString();
                     const int at = s.indexOf("<!>");
                     if (at >= 0) {
