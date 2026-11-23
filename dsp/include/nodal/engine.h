@@ -100,6 +100,7 @@ struct Settings {
     float sprayS = 0.0f, grainS = 0.12f;
     bool freeze = false;
     float releaseS = 0.12f, gateDb = -60.0f, voiced = 0.5f, threshold = 0.15f;
+    float steadyS = 0.04f;  // STEADY: round trips shorter than this are not followed
     float sub = 0.0f, breath = 0.15f, toneHz = 0.0f, drive = 0.0f;
     int breathMode = 0;  // BreathMode
 };
@@ -112,6 +113,8 @@ public:
     void prepare(float sampleRate) {
         sampleRate_ = sampleRate;
         analyzer_.prepare(sampleRate);
+        analyzer_.setThreshold(settings_.threshold);
+        analyzer_.setSteady(settings_.steadyS);  // its window is counted in frames: depends on the rate
         hop_ = analyzer_.hop();
         invHop_ = 1.0f / float(hop_);
         cycleFft_.prepare(kCycle);
@@ -176,6 +179,7 @@ public:
     void setSettings(const Settings& s) {
         settings_ = s;
         analyzer_.setThreshold(s.threshold);
+        analyzer_.setSteady(s.steadyS);
         releaseCoef_ = smoothingCoef(std::max(0.005f, s.releaseS), sampleRate_);
     }
     // Any thread. The audio thread reads the pointer once per hop and is done with it within
@@ -475,7 +479,7 @@ private:
             }
 
             // Pitch: tracked (or fixed), transposed, folded into RANGE, quantised, glided, detuned.
-            float target = s.fixedPitch ? s.fixedNote : hzToMidi(frame->f0) + s.transpose;
+            float target = s.fixedPitch ? s.fixedNote : frame->midi + s.transpose;
             if (!s.fixedPitch) target = quantise(vo, fold(vo, target));
             if (!vo.started) vo.midi = target;
             else vo.midi += glideCoef * (target - vo.midi);

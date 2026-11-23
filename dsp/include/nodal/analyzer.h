@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <array>
+
 #include "fft.h"
 
 namespace nodal {
@@ -21,6 +24,7 @@ struct Frame {
     float levelDb = -120;   // window RMS
     float brightness = 0.5f;  // 0..1, spectral centroid relative to the pitch
     float tiltA = 0, tiltB = 0;  // envelope's broad slope: dB = A + B * octaves above 1 kHz
+    float midi = 57.0f;     // the pitch the synth plays (MIDI), after STEADY
     std::array<float, kEnvPoints> env{};  // dB, tilt removed, peak at 0 dB
 };
 
@@ -31,6 +35,7 @@ struct Frame {
 class Analyzer {
 public:
     static constexpr int kHistory = 512;  // frames kept for SPRAY (2.7 s)
+    static constexpr int kSteadyMax = 64;  // STEADY's window, in frames (2 x 120 ms at 44.1 / 48 kHz: 45)
 
     void prepare(float sampleRate) {
         sampleRate_ = sampleRate;
@@ -63,12 +68,20 @@ public:
         count_ = 0;
         recent_[0] = recent_[1] = recent_[2] = 220.0f;
         lastF0_ = 220.0f;
+        recentMidi_.fill(57.0f);
+        recentPos_ = recentCount_ = 0;
         dcIn_ = dcOut_ = 0.0f;
     }
 
     int windowSize() const { return size_; }
     int hop() const { return hop_; }
     void setThreshold(float t) { threshold_ = t; }
+    // STEADY: quick round trips of the pitch are not followed. The median of the pitches over
+    // the last 2 x `seconds` says where the line is; a pitch within 2.5 semitones of it (vibrato,
+    // a step, a third) passes at once, one further away is replaced by the median. A real leap
+    // becomes the median after `seconds` and is followed from then on: it arrives that much
+    // later; an excursion shorter than `seconds` never reaches the synth. 0: off.
+    void setSteady(float seconds) { steadyFrames_ = std::clamp(int(std::lround(2.0f * seconds * sampleRate_ / float(hop_))), 0, kSteadyMax); }
 
     // One sample in. Returns true when a new frame was just analysed.
     bool push(float x) {
@@ -81,6 +94,7 @@ public:
         if (++count_ < hop_) return false;
         count_ = 0;
         analyse();
+        steady(history_[size_t(head_)]);
         return true;
     }
 
@@ -88,6 +102,19 @@ public:
     const Frame& frame(int lag) const { return history_[size_t((head_ - std::clamp(lag, 0, kHistory - 1) + kHistory) % kHistory)]; }
 
 private:
+    void steady(Frame& f) {
+        const float x = hzToMidi(f.f0);
+        recentMidi_[size_t(recentPos_)] = x;
+        recentPos_ = (recentPos_ + 1) % kSteadyMax;
+        recentCount_ = std::min(recentCount_ + 1, kSteadyMax);
+        const int n = std::min(steadyFrames_, recentCount_);
+        if (n <= 2) { f.midi = x; return; }
+        for (int i = 0; i < n; ++i) scratch_[size_t(i)] = recentMidi_[size_t((recentPos_ - 1 - i + kSteadyMax) % kSteadyMax)];
+        std::nth_element(scratch_.begin(), scratch_.begin() + n / 2, scratch_.begin() + n);
+        const float median = scratch_[size_t(n / 2)];
+        f.midi = std::abs(x - median) <= 2.5f ? x : median;
+    }
+
     void analyse() {
         for (int i = 0; i < size_; ++i) frame_[size_t(i)] = ring_[size_t((write_ + i) & (size_ - 1))];
         head_ = (head_ + 1) % kHistory;
@@ -229,6 +256,8 @@ private:
     }
 
     float sampleRate_ = 48000.0f, threshold_ = 0.15f, windowGain_ = 1.0f;
+    std::array<float, kSteadyMax> recentMidi_{}, scratch_{};
+    int recentPos_ = 0, recentCount_ = 0, steadyFrames_ = 0;
     int size_ = 2048, hop_ = 256, write_ = 0, head_ = 0, count_ = 0;
     RealFft fft_;
     std::vector<float> ring_, frame_, padded_, windowed_, window_, corr_, energy_, cmnd_, magnitude_;

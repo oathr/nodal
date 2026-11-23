@@ -57,6 +57,7 @@ inline float grainS(float t) { return 0.02f * std::pow(25.0f, t); }            /
 inline float releaseS(float t) { return 0.05f * std::pow(80.0f, t); }
 inline float gateDb(float t) { return -90.0f + 70.0f * t; }                    // -90 .. -20 dB
 inline float threshold(float t) { return 0.05f + 0.3f * t; }                   // YIN threshold
+inline float steadyS(float t) { return 0.12f * t; }                             // 0 (off) .. 120 ms
 inline float subGain(float t) { return t <= 0.0f ? 0.0f : std::pow(10.0f, (-36.0f + 36.0f * t) / 20.0f); }
 inline float toneHz(float t) { return t >= 1.0f ? 0.0f : 200.0f * std::pow(100.0f, t); }  // 200 Hz .. 20 kHz, top = off
 // Inverse maps, for the presets.
@@ -126,6 +127,7 @@ inline const std::vector<Spec>& all() {
         {"gate", "Gate", Kind::Float, tGate(-60.0f), {}, [](float t) { return fmt("%.0f dB", gateDb(t)); }},
         {"voiced", "Voiced Only", Kind::Float, 0.5f, {}, pct},
         {"sensitivity", "Sensitivity", Kind::Float, 1.0f / 3.0f, {}, pct},
+        {"steady", "Steady", Kind::Float, 1.0f / 3.0f, {}, [](float t) { return t <= 0.0f ? std::string("off") : fmt("%.0f ms", 1000.0 * steadyS(t)); }},
         // COLOR
         {"sub", "Sub", Kind::Float, 0.0f, {}, [](float t) { return t <= 0.0f ? std::string("off") : fmt("%+.1f dB", -36.0 + 36.0 * t); }},
         {"breath", "Breath", Kind::Float, 0.0f, {}, pct},
@@ -150,7 +152,7 @@ inline Settings toSettings(const float* v) {
         std::vector<int> map;
         for (const char* id : {"mix", "output", "latency", "pitch_mode", "transpose", "fine", "glide", "quantize", "key", "fixed_note",
                                "table", "position", "track", "formant", "formant_shift", "voices", "detune", "spread", "width", "spray",
-                               "grain", "freeze", "release", "gate", "voiced", "sensitivity", "sub", "breath", "tone", "drive", "breath_mode", "range_low", "range_high"})
+                               "grain", "freeze", "release", "gate", "voiced", "sensitivity", "sub", "breath", "tone", "drive", "breath_mode", "range_low", "range_high", "steady"})
             map.push_back(indexOf(id));
         return map;
     }();
@@ -189,6 +191,7 @@ inline Settings toSettings(const float* v) {
     s.breathMode = c(30);
     s.rangeLow = rangeNote(f(31));
     s.rangeHigh = rangeNote(f(32));
+    s.steadyS = steadyS(f(33));
     return s;
 }
 

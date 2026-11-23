@@ -29,6 +29,14 @@ The switch is not automatable: every latency change restarts the plugin in the h
 2.5 – 4 % at 96 kHz. Worst single block: 16 % of its budget at 48 kHz / 64 samples, 48 % at
 96 kHz / 64 samples (the block where a hop's analysis lands).
 
+**Steady.** A quick round trip of the pitch (an octave or a fifth for a few tens of ms, at a
+note's start or in its middle) is not followed: the synth stays on the median of the pitches
+over the last 2 × STEADY; a pitch within 2.5 semitones of it (vibrato, a step, a third) passes
+at once. A real leap becomes the median after STEADY and is followed from then on. Measured
+(`--analyse`, five round trips of 10 – 45 ms): 3 reach the synth with STEADY off, 1 at 40 ms
+(the default; the 45 ms one), none at 80 ms; real leaps arrive 37 ms (40 ms) or 79 ms
+(80 ms) later. The SPRAY grains read the same steadied line.
+
 **Range.** RANGE keeps the synth between two notes (at least an octave apart) by moving
 each note by whole octaves. The octave holds while the note stays within a semitone of the
 range, so a note on an edge does not flip back and forth; when it must change, the octave
@@ -50,7 +58,7 @@ playing's dynamics and brightness.
 | **TABLE** | 12 factory tables or your own, POSITION, TRACK (the input's brightness moves the position), FORMANT (imprint of the input's formants), FORMANT SHIFT |
 | **UNISON** | VOICES 1 – 8, DETUNE, WT SPREAD (each voice at another position), WIDTH |
 | **SPRAY** | SPRAY (how far back, up to 2 s), GRAIN (20 – 500 ms), FREEZE |
-| **DYNAMICS** | RELEASE (time to fall 30 dB, 50 ms – 4 s), GATE, VOICED ONLY (mutes the synth on unpitched sounds), SENSITIVITY (pitch detection threshold) |
+| **DYNAMICS** | RELEASE (time to fall 30 dB, 50 ms – 4 s), GATE, VOICED ONLY (mutes the synth on unpitched sounds), SENSITIVITY (pitch detection threshold), STEADY (0 – 120 ms: round trips shorter than this are ignored) |
 | **COLOR** | BREATH and its mode (FLUTE / AIR / WHISPER / INPUT), SUB (sine an octave down), TONE (low-pass), DRIVE |
 | **OUTPUT** | ALIGNED / LIVE, OUTPUT, MIX |
 

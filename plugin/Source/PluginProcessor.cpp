@@ -13,7 +13,7 @@ juce::String groupOf(const std::string& id) {
         {{"table", "position", "track", "formant", "formant_shift"}, "TABLE"},
         {{"voices", "detune", "spread", "width"}, "UNISON"},
         {{"spray", "grain", "freeze"}, "SPRAY"},
-        {{"release", "gate", "voiced", "sensitivity"}, "DYNAMICS"},
+        {{"release", "gate", "voiced", "sensitivity", "steady"}, "DYNAMICS"},
         {{"sub", "breath", "breath_mode", "tone", "drive"}, "COLOR"}};
     for (const auto& [ids, name] : groups)
         if (std::find(ids.begin(), ids.end(), id) != ids.end()) return name;

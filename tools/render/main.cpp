@@ -322,6 +322,60 @@ void measureSafety() {
     std::printf("  %s\n", bad ? "FAILURES above" : "all presets finite, under 0 dBFS, silent after the input stops");
 }
 
+// STEADY: a sung line with quick round trips (an octave, a fifth, 10 .. 45 ms) and real leaps.
+// Counts the round trips that reach the synth and how late the real leaps arrive.
+void measureSteady() {
+    std::printf("\n== STEADY (round trips of 10..45 ms, real leaps; synth note read every 64 samples) ==\n");
+    const float rate = 48000.0f;
+    struct Span { float from, to, semitones; };
+    const std::vector<Span> notes = {{0, .45f, 57}, {.45f, .95f, 69}, {.95f, 1.45f, 66}, {1.45f, 1.95f, 64}, {1.95f, 2.5f, 59}, {2.5f, 3.0f, 64}};
+    const std::vector<Span> trips = {{.20f, .215f, 12}, {.60f, .63f, 7}, {1.10f, 1.145f, -12}, {1.65f, 1.67f, 12}, {2.15f, 2.18f, -7}};
+    const std::vector<float> leaps = {.45f, 1.95f, 2.5f};
+    const auto pitchAt = [&](float t) {
+        float m = notes.back().semitones;
+        for (const auto& n : notes) if (t >= n.from && t < n.to) m = n.semitones;
+        for (const auto& x : trips) if (t >= x.from && t < x.to) m += x.semitones;
+        return m;
+    };
+    Stereo in;
+    in.sampleRate = rate;
+    in.resize(size_t(3.0f * rate));
+    double phase = 0.0;
+    for (size_t i = 0; i < in.size(); ++i) {
+        const float t = float(i) / rate, f = midiToHz(pitchAt(t) + .2f * std::sin(kTwoPi * 5.5f * t));
+        phase += double(f / rate);
+        phase -= std::floor(phase);
+        float s = 0.0f;
+        for (int k = 1; k <= 12 && k * f < .45f * rate; ++k) s += std::sin(kTwoPi * float(k) * float(phase)) / float(k);
+        in.left[i] = in.right[i] = .25f * s;
+    }
+    for (const float ms : {0.0f, 40.0f, 80.0f}) {
+        Engine e;
+        e.prepare(rate);
+        e.setSettings(Setup(0).set("steady", ms / 120.0f).set("glide", 0.0f).set("latency", 1.0f).settings());
+        Stereo out = in;
+        std::vector<std::pair<float, float>> track;  // (time, synth note)
+        for (size_t at = 0; at + 64 <= out.size(); at += 64) {
+            e.process(out.left.data() + at, out.right.data() + at, 64);
+            track.push_back({float(at + 64) / rate, e.readout().midi[0].load()});
+        }
+        int heard = 0;
+        for (const auto& x : trips) {
+            const float wrong = pitchAt(.5f * (x.from + x.to));
+            bool reached = false;
+            for (const auto& [t, m] : track) if (t >= x.from && t < x.to + .08f && std::abs(m - wrong) < 1.5f) reached = true;
+            heard += reached;
+        }
+        // A leap's delay, against the same leap with STEADY off (the analysis has its own).
+        float late = 0.0f;
+        for (const float at : leaps) {
+            const float target = pitchAt(at + .3f);  // clear of the round trips
+            for (const auto& [t, m] : track) if (t >= at && std::abs(m - target) < 1.0f) { late = std::max(late, t - at); break; }
+        }
+        std::printf("  STEADY %3.0f ms: %d of %zu round trips reach the synth, real leaps followed after %3.0f ms at most\n", ms, heard, trips.size(), 1000.0 * late);
+    }
+}
+
 // RANGE: a line over four octaves with octave leaps; where the synth's notes land.
 void measureRange() {
     std::printf("\n== RANGE (line C2..C6 with octave leaps, synth note read every 256 samples) ==\n");
@@ -380,6 +434,7 @@ int main(int argc, char** argv) {
         measureBreath();
         measurePresets();
         measurePresetBreath();
+        measureSteady();
         measureRange();
         measureSafety();
         return 0;

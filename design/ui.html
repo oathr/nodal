@@ -61,7 +61,7 @@ header { position: absolute; left: 20px; right: 20px; top: 14px; height: 52px; d
 .barcode::after { content: "NDL-0.2"; position: absolute; left: 0; right: 0; bottom: -1px; background: var(--bg); text-align: center; font-size: 8px; letter-spacing: 1px; color: var(--ink2); }
 
 /* Cards --------------------------------------------------------------------------------- */
-.col { position: absolute; top: 80px; display: flex; flex-direction: column; gap: 12px; }
+.col { position: absolute; top: 78px; display: flex; flex-direction: column; gap: 10px; }
 .card { background: var(--card); border: 1px solid var(--edge); position: relative; }
 .card > h2 { height: 24px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 0; font-weight: 600; font-size: 10px; letter-spacing: 1.6px;
   background: var(--tint, var(--paper2)); color: var(--dark); }
@@ -131,7 +131,7 @@ header { position: absolute; left: 20px; right: 20px; top: 14px; height: 52px; d
 .meter i { position: absolute; left: 0; top: 0; bottom: 0; }
 .mlbl { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: 1px; color: var(--ink2); margin-bottom: -3px; }
 canvas { display: block; }
-.envbox { border: 1px solid var(--edge); height: 74px; position: relative; background: var(--well); }
+.envbox { border: 1px solid var(--edge); height: 50px; position: relative; background: var(--well); }
 .envbox span { position: absolute; font-size: 8px; color: var(--ink2); letter-spacing: .6px; top: 3px; }
 
 /* PLATE ------------------------------------------------------------------------------- */
@@ -187,7 +187,7 @@ canvas { display: block; }
 .tbtn { font: inherit; font-size: 9.5px; letter-spacing: 1.1px; border: 1px solid var(--edge); background: transparent; color: var(--ink); padding: 0 9px; cursor: pointer; height: 26px; }
 .tbtn:hover { background: var(--butter); color: var(--dark); }
 .trow { display: flex; gap: 6px; }
-.wtbox { border: 1px solid var(--edge); height: 66px; background: var(--well); position: relative; }
+.wtbox { border: 1px solid var(--edge); height: 52px; background: var(--well); position: relative; }
 .err { color: #FF9DB5; font-size: 9.5px; min-height: 0; }
 
 /* the line under everything: what the hovered control does, and the gestures */
@@ -262,6 +262,7 @@ canvas { display: block; }
         <div class="ctl" data-id="gate"></div>
         <div class="ctl" data-id="voiced"></div>
         <div class="ctl" data-id="sensitivity"></div>
+        <div class="ctl" data-id="steady" style="grid-column: 1 / -1"></div>
       </div>
     </div>
   </div>
@@ -403,6 +404,7 @@ const SPECS = {
   gate: S('slider', 30 / 70, t => Math.round(-90 + 70 * t) + ' dB', { label: 'GATE' }),
   voiced: S('slider', .5, pct, { label: 'VOICED ONLY' }),
   sensitivity: S('slider', 1 / 3, pct, { label: 'SENSITIVITY' }),
+  steady: S('slider', 1 / 3, t => t <= 0 ? 'off' : Math.round(120 * t) + ' ms', { label: 'STEADY' }),
   sub: S('slider', 0, t => t <= 0 ? 'off' : sgn(-36 + 36 * t) + ' dB', { label: 'SUB' }),
   breath: S('slider', 0, pct, { label: 'BREATH' }),
   tone: S('slider', 1, t => t >= 1 ? 'open' : hz(200 * Math.pow(100, t)), { label: 'TONE' }),
@@ -438,6 +440,7 @@ const HELP = {
   gate: 'Under this level the synth is silent (room noise, bleed).',
   voiced: 'Mutes the synth on unpitched sounds (consonants, noise); BREATH still passes.',
   sensitivity: 'Pitch detection: higher finds more notes in noisy or breathy playing, lower is stricter.',
+  steady: 'Ignores quick round trips: a leap away from where the line has been sits out until it lasts this long. Real leaps arrive this much later; small moves pass at once.',
   breath: 'What is not a note in the playing (breath, bow, consonants), resynthesised as noise.',
   breath_mode: 'FLUTE: jet noise on the synth\'s harmonics. AIR: bright hiss. WHISPER: the input\'s vowels. INPUT: the input\'s own colour (darkest).',
   sub: 'A sine one octave below.',
@@ -1339,9 +1342,9 @@ const plate = {
       void main() {
         vec2 q = uShape == 1 ? qOf(uv) : uv;
         float u = field(q), a = abs(u);
-        vec3 plate = vec3(.035), grey = vec3(.16), white = vec3(.93);  // black and white only
+        vec3 plate = vec3(.035), grey = vec3(.068), white = vec3(.93);  // the figure under the sand: a hint, not a shadow
         vec3 c = mix(plate, grey, smoothstep(0.0, 1.4, a));
-        c = mix(c, grey * .55, smoothstep(.0, .1, -u) * .35);
+        c = mix(c, plate * .8, smoothstep(.0, .1, -u) * .15);
         c = mix(c, white, (1.0 - smoothstep(0.0, .035, a)) * .07 * uEnergy);
         if (uShape == 1) {
           float r = length(q * 2.0 - 1.0), px = fwidth(r);
