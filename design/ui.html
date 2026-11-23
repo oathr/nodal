@@ -1099,7 +1099,8 @@ const sim = {
     ['GUITARE', 'Pluck numérique'], ['TEXTURE', 'Nuage de grains'], ['TEXTURE', 'Brume'], ['TEXTURE', 'Constellation'], ['TEXTURE', 'Bourdon fixe'],
     ['FX', 'Plaque de Chladni'], ['FX', 'Octave dessous'], ['FX', 'Fold sauvage']],
   start() {
-    presets.list = this.presetNames.map(([c, n]) => ({ category: c, name: n, note: 'Browser preview: simulated input.' }));
+    // The first preset's own description (Presets.h); the others: a reminder that the input is simulated.
+    presets.list = this.presetNames.map(([c, n], i) => ({ category: c, name: n, note: i === 0 ? 'Le point de départ : la même note, le même souffle, en synthé.' : 'Browser preview: simulated input.' }));
     presets.show(0);
     this.factory(0);
     document.getElementById('stCpu').textContent = '1.8 %';

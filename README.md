@@ -6,6 +6,8 @@ a wavetable you choose. A MIX control sets how much of the transformation you he
 
 It is an effect, not an instrument: no MIDI, the performance is the controller.
 
+![The NODAL interface, the plate in SAND mode](docs/screenshot.png)
+
 ## How it works
 
 Every 5.3 ms (one *hop*) the input is analysed and drives up to eight wavetable voices.
