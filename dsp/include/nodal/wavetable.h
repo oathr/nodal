@@ -1,9 +1,12 @@
 #pragma once
 
+#include <array>
 #include <functional>
+#include <initializer_list>
 #include <memory>
 #include <string>
 
+#include "akwf.h"
 #include "fft.h"
 
 namespace nodal {
@@ -102,8 +105,12 @@ public:
     int count() const { return int(tables_.size()); }
     const Wavetable& table(int i) const { return *tables_[size_t(std::clamp(i, 0, count() - 1))]; }
     static const std::vector<std::string>& names() {
-        static const std::vector<std::string> n = {"Basic", "Pulse", "Sweep", "Vowel", "Hollow", "FM",
-                                                   "Sync", "Fold", "Digital", "Organ", "Shards", "Choir"};
+        // In the order they are built: NODAL 0.2's twelve (made here), then the AKWF tables.
+        static const std::vector<std::string> n = [] {
+            std::vector<std::string> list = {"Basic", "Pulse", "Sweep", "Vowel", "Hollow", "FM", "Sync", "Fold", "Digital", "Organ", "Shards", "Choir"};
+            for (const auto& t : akwf::kTables) list.push_back(t.name);
+            return list;
+        }();
         return n;
     }
 
@@ -161,6 +168,28 @@ private:
             g += dbToGain(db) / (1.0f + x * x);
         }
         return g;
+    }
+
+    // Two cycles' harmonics, A to B over the frames: the levels blend, each harmonic keeps the
+    // phase of the nearer cycle (a straight mix of the two would cancel some harmonics).
+    static std::unique_ptr<Wavetable> fromCycles(const akwf::Table& t) {
+        auto w = std::make_unique<Wavetable>();
+        w->name = t.name;
+        w->allocate(kFrames);
+        RealFft fft;
+        fft.prepare(1024);
+        std::vector<Complex> bins(513);
+        std::vector<float> wave(1024);
+        for (int f = 0; f < kFrames; ++f) {
+            const float u = float(f) / float(kFrames - 1);
+            Complex* c = w->harm.data() + size_t(f) * kHarmonics;
+            for (int k = 0; k < std::min(akwf::kHarm, kHarmonics); ++k) {
+                const Complex a(t.harm[2 * k], t.harm[2 * k + 1]), b(t.harm[2 * (akwf::kHarm + k)], t.harm[2 * (akwf::kHarm + k) + 1]);
+                c[k] = std::polar((1.0f - u) * std::abs(a) + u * std::abs(b), std::arg(u < 0.5f ? a : b));
+            }
+            w->finishFrame(f, fft, bins, wave);
+        }
+        return w;
     }
 
     FactoryTables() {
@@ -233,6 +262,9 @@ private:
             const float g = vowelGain(0.75f - 0.75f * t, 130.0f * float(k)) / float(k);
             return Complex(std::polar(g, kTwoPi * hash(k * 31 + 5)));
         }));
+        // The Adventure Kid Waveforms (CC0): 40 tables, each from two single cycles of one
+        // family, POSITION morphing from the first to the second.
+        for (int i = 0; i < akwf::kCount; ++i) tables_.push_back(fromCycles(akwf::kTables[i]));
     }
 
     std::vector<std::unique_ptr<Wavetable>> tables_;

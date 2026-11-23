@@ -258,7 +258,7 @@ void NodalEditor::sendTable() {
     const auto folder = processor_.tableFolder();
     info->setProperty("folder", folder.getFileName());
     info->setProperty("path", user ? juce::File(processor_.userTablePath()).getRelativePathFrom(folder).replaceCharacter('\\', '/') : juce::String());
-    info->setProperty("index", user ? processor_.tableFileIndex() : int(std::lround(processor_.apvts.getRawParameterValue("table")->load())));
+    info->setProperty("index", user ? processor_.tableFileIndex() : nodal::params::factoryOfChoice(int(std::lround(processor_.apvts.getRawParameterValue("table")->load()))));
     info->setProperty("count", user ? processor_.tableFiles().size() : nodal::FactoryTables::get().count());
     info->setProperty("frames", t.frames);
     info->setProperty("error", processor_.lastTableError);
@@ -332,9 +332,8 @@ void NodalEditor::timerCallback() {
         live->setProperty("sampleRate", processor_.getSampleRate());
         live->setProperty("latency", processor_.getLatencySamples());
     }
-    // The plate view has no relays: it gets the two values its drawing reads.
+    // The plate view has no relays: it gets the value its drawing reads.
     live->setProperty("freeze", processor_.apvts.getRawParameterValue("freeze")->load());
-    live->setProperty("spray", processor_.apvts.getParameter("spray")->getValue());
     const juce::var liveVar(live);
     webView_.emitEventIfBrowserIsVisible("nodal_live", liveVar);
     if (plateWindow_ != nullptr) plateWindow_->web.emitEventIfBrowserIsVisible("nodal_live", liveVar);

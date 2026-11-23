@@ -178,8 +178,8 @@ void measureCpu() {
                                {"1 voice, no formant, breath", Setup(0).set("voices", 0).set("formant", 0.0f)},
                                {"preset 0 (2 voices)", Setup(0)},
                                {"8 voices, formant, breath, spread", Setup(0).set("voices", 7).set("formant", 1.0f).set("breath", 1.0f).set("spread", 0.7f)},
-                               {"8 voices + spray 2 s, grain 20 ms", Setup(0).set("voices", 7).set("formant", 1.0f).set("breath", 1.0f).set("spray", 1.0f)
-                                                                       .set("grain", 0.0f).set("drive", 0.5f).set("tone", 0.6f).set("sub", 0.8f)}};
+                               {"8 voices + LADDER filter, res 90 %", Setup(0).set("voices", 7).set("formant", 1.0f).set("breath", 1.0f).set("filter_type", 1.0f).set("filter_res", 0.9f)
+                                                                       .set("filter_drive", 0.5f).set("drive", 0.5f).set("tone", 0.6f).set("sub", 0.8f)}};
     {
         Stereo in = voiceLike(48000.0f, {48, 55, 60, 62, 67, 72, 0, 64}, 1.25f, -12.0f);
         Analyzer an;
@@ -322,6 +322,46 @@ void measureSafety() {
     std::printf("  %s\n", bad ? "FAILURES above" : "all presets finite, under 0 dBFS, silent after the input stops");
 }
 
+// FILTER: every model and mode on white noise at full resonance with the cutoff swept up to
+// the top (finite, bounded); the low-pass response at 1 kHz (what passes at 100 Hz, what is
+// left at 8 kHz); the cost.
+void measureFilter() {
+    std::printf("\n== FILTER (48 kHz) ==\n");
+    const char* names[] = {"", "LADDER", "DIODE", "MS-20", "SEM", "OTA", "DIGITAL", "FORMANT", "COMB", "PHASER"};
+    const float rate = 48000.0f;
+    const auto toneThrough = [&](int model, float hz) {  // RMS out / RMS in, steady state, LP at 1 kHz, RES 0
+        Filter f;
+        f.prepare(rate);
+        f.set(Filter::Model(model), Filter::Mode::Lp, 1000.0f, 0.0f, 0.0f);
+        double in = 0.0, out = 0.0;
+        for (int i = 0; i < int(rate); ++i) {
+            const float x = 0.1f * std::sin(kTwoPi * hz * float(i) / rate), y = f.process(0, x);
+            if (i > int(rate) / 2) in += double(x) * x, out += double(y) * y;
+        }
+        return 10.0 * std::log10(out / in);
+    };
+    for (int model = 1; model < Filter::kModels; ++model) {
+        float peak = 0.0f;
+        bool finite = true;
+        double seconds = 0.0;
+        for (int mode = 0; mode < 4; ++mode) {
+            Filter f;
+            f.prepare(rate);
+            Rng rng;
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int i = 0; i < int(2.0f * rate); ++i) {
+                if (i % 16 == 0) f.set(Filter::Model(model), Filter::Mode(mode), 20.0f * std::pow(1000.0f, float(i) / (2.0f * rate)), 1.0f, 1.0f);
+                const float y = f.process(0, 0.5f * rng.bipolar());
+                finite = finite && std::isfinite(y);
+                peak = std::max(peak, std::abs(y));
+            }
+            seconds += std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+        }
+        std::printf("  %-8s noise, RES 100 %%, DRIVE 100 %%, cutoff 20 Hz -> 20 kHz, 4 modes: %s, peak %5.2f;  LP 1 kHz: 100 Hz %+5.1f dB, 8 kHz %+6.1f dB;  %.2f %% of a core per channel\n",
+                    names[model], finite ? "finite" : "NOT FINITE", peak, toneThrough(model, 100.0f), toneThrough(model, 8000.0f), 100.0 * seconds / 8.0);
+    }
+}
+
 // STEADY: a sung line with quick round trips (an octave, a fifth, 10 .. 45 ms) and real leaps.
 // Counts the round trips that reach the synth and how late the real leaps arrive.
 void measureSteady() {
@@ -427,6 +467,29 @@ int main(int argc, char** argv) {
         const auto t0 = std::chrono::steady_clock::now();
         FactoryTables::get();
         std::printf("factory tables: %.0f ms to build\n", 1000.0 * std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+        {  // every table: finite, never silent, its preview within -1 .. 1, the menu's names in step
+            const auto& ft = FactoryTables::get();
+            int bad = 0;
+            for (int i = 0; i < ft.count(); ++i) {
+                const auto& w = ft.table(i);
+                bool finite = true;
+                double lowest = 1e9;
+                for (int f = 0; f < w.frames; ++f) {
+                    double power = 0.0;
+                    for (int k = 0; k < kHarmonics; ++k) {
+                        const auto c = w.harm[size_t(f) * kHarmonics + size_t(k)];
+                        finite = finite && std::isfinite(c.real()) && std::isfinite(c.imag());
+                        power += double(std::norm(c));
+                    }
+                    lowest = std::min(lowest, power);
+                }
+                float peak = 0.0f;
+                for (const float v : w.preview) peak = std::max(peak, std::abs(v));
+                const bool ok = finite && lowest > 1e-6 && peak <= 1.0001f && w.name == FactoryTables::names()[size_t(i)];
+                if (!ok) { ++bad; std::printf("  table %d %s: finite %d, quietest frame %.2g, preview peak %.2f\n", i, w.name.c_str(), finite, lowest, peak); }
+            }
+            std::printf("factory tables: %d, %d with a problem\n", ft.count(), bad);
+        }
         measurePitch();
         measureLevel();
         measureAliasing();
@@ -434,6 +497,7 @@ int main(int argc, char** argv) {
         measureBreath();
         measurePresets();
         measurePresetBreath();
+        measureFilter();
         measureSteady();
         measureRange();
         measureSafety();

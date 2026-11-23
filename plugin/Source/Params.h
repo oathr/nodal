@@ -51,8 +51,7 @@ inline float fixedNote(float t) { return std::round(24.0f + 72.0f * t); }      /
 inline float rangeNote(float t) { return std::round(12.0f + 96.0f * t); }      // C0 .. C8 (both ends: off)
 inline float formantShift(float t) { return -12.0f + 24.0f * t; }
 inline float detuneCents(float t) { return 50.0f * t * t; }                     // 0 .. 50 cents
-inline float sprayS(float t) { return 2.0f * t * t; }                           // 0 .. 2 s
-inline float grainS(float t) { return 0.02f * std::pow(25.0f, t); }            // 20 .. 500 ms
+inline float filterHz(float t) { return 20.0f * std::pow(1000.0f, t); }        // 20 Hz .. 20 kHz
 // RELEASE as shown: the time to fall 30 dB after the input stops (50 ms .. 4 s).
 inline float releaseS(float t) { return 0.05f * std::pow(80.0f, t); }
 inline float gateDb(float t) { return -90.0f + 70.0f * t; }                    // -90 .. -20 dB
@@ -67,8 +66,7 @@ inline float tGlide(float s) { return std::sqrt(s); }
 inline float tNote(float midi) { return (midi - 24.0f) / 72.0f; }
 inline float tRange(float midi) { return (midi - 12.0f) / 96.0f; }
 inline float tDetune(float c) { return std::sqrt(c / 50.0f); }
-inline float tSpray(float s) { return std::sqrt(s / 2.0f); }
-inline float tGrain(float s) { return std::log(s / 0.02f) / std::log(25.0f); }
+inline float tFilter(float hz) { return std::log(hz / 20.0f) / std::log(1000.0f); }
 inline float tRelease(float s) { return std::log(s / 0.05f) / std::log(80.0f); }
 inline float tGate(float db) { return (db + 90.0f) / 70.0f; }
 inline float tSub(float db) { return (db + 36.0f) / 36.0f; }
@@ -85,9 +83,17 @@ inline const std::vector<std::string> kBreathModes = {"Flute", "Air", "Whisper",
 inline const std::vector<std::string> kKeys = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 inline const std::vector<std::string> kVoices = {"1", "2", "3", "4", "5", "6", "7", "8"};
 inline const std::vector<std::string> kLatency = {"Aligned", "Live"};
+inline const std::vector<std::string> kFilterModels = {"Off", "Ladder", "Diode", "MS-20", "SEM", "OTA", "Digital", "Formant", "Comb", "Phaser"};
+inline const std::vector<std::string> kFilterModes = {"LP", "BP", "HP", "Notch"};
+// The TABLE menu: NODAL 0.2's twelve factory tables, "User" (index 12, where older sessions
+// saved it), then the newer factory tables. Choice index <-> factory index:
+constexpr int kUserChoice = 12;
+inline int factoryOfChoice(int c) { return c < kUserChoice ? c : c - 1; }  // c != kUserChoice
+inline int choiceOfFactory(int f) { return f < kUserChoice ? f : f + 1; }
+inline int tableChoiceCount() { return int(FactoryTables::names().size()) + 1; }
 inline std::vector<std::string> tableChoices() {
     auto list = FactoryTables::names();
-    list.push_back("User");
+    list.insert(list.begin() + kUserChoice, "User");
     return list;
 }
 
@@ -119,8 +125,14 @@ inline const std::vector<Spec>& all() {
         {"spread", "WT Spread", Kind::Float, 0.15f, {}, pct},
         {"width", "Width", Kind::Float, 0.6f, {}, pct},
         // SPRAY
-        {"spray", "Spray", Kind::Float, 0.0f, {}, [](float t) { return t <= 0.0f ? std::string("off") : msText(sprayS(t)); }},
-        {"grain", "Grain", Kind::Float, tGrain(0.12f), {}, [](float t) { return msText(grainS(t)); }},
+        // FILTER (nodal/filter.h): a model, its response, where it sits, how it moves.
+        {"filter_type", "Filter Type", Kind::Choice, 0.0f, kFilterModels},
+        {"filter_mode", "Filter Mode", Kind::Choice, 0.0f, kFilterModes},
+        {"filter_cutoff", "Filter Cutoff", Kind::Float, tFilter(2000.0f), {}, [](float t) { return hzText(filterHz(t)); }},
+        {"filter_res", "Filter Resonance", Kind::Float, 0.3f, {}, pct},
+        {"filter_drive", "Filter Drive", Kind::Float, 0.0f, {}, pct},
+        {"filter_key", "Filter Key Track", Kind::Float, 0.5f, {}, pct},
+        {"filter_env", "Filter Envelope", Kind::Float, 0.5f, {}, bipolarPct},
         {"freeze", "Freeze", Kind::Bool, 0.0f},
         // DYNAMICS
         {"release", "Release", Kind::Float, tRelease(0.4f), {}, [](float t) { return msText(releaseS(t)); }},
@@ -148,50 +160,61 @@ inline int indexOf(const std::string& id) {
 // The engine's settings from the parameter values (in table order, plain values: 0..1 for
 // floats, 0/1 for switches, the index for menus).
 inline Settings toSettings(const float* v) {
+    static const char* const ids[] = {"mix", "output", "latency", "pitch_mode", "transpose", "fine", "glide", "quantize", "key", "fixed_note",
+                                      "table", "position", "track", "formant", "formant_shift", "voices", "detune", "spread", "width",
+                                      "freeze", "release", "gate", "voiced", "sensitivity", "sub", "breath", "tone", "drive", "breath_mode",
+                                      "range_low", "range_high", "steady", "filter_type", "filter_mode", "filter_cutoff", "filter_res",
+                                      "filter_drive", "filter_key", "filter_env"};
+    enum { Mix, Output, Latency, PitchMode, Transpose, Fine, Glide, Quantize, Key, FixedNote, Table, Position, Track, Formant, FormantShift,
+           Voices, Detune, Spread, Width, Freeze, Release, Gate, Voiced, Sensitivity, Sub, Breath, Tone, Drive, BreathMode, RangeLow, RangeHigh,
+           Steady, FilterType, FilterMode, FilterCutoff, FilterRes, FilterDrive, FilterKey, FilterEnv, Count };
+    static_assert(Count == sizeof(ids) / sizeof(ids[0]));
     static const auto at = [] {
         std::vector<int> map;
-        for (const char* id : {"mix", "output", "latency", "pitch_mode", "transpose", "fine", "glide", "quantize", "key", "fixed_note",
-                               "table", "position", "track", "formant", "formant_shift", "voices", "detune", "spread", "width", "spray",
-                               "grain", "freeze", "release", "gate", "voiced", "sensitivity", "sub", "breath", "tone", "drive", "breath_mode", "range_low", "range_high", "steady"})
-            map.push_back(indexOf(id));
+        for (const char* id : ids) map.push_back(indexOf(id));
         return map;
     }();
     const auto f = [&](int i) { return v[at[size_t(i)]]; };
     const auto c = [&](int i) { return int(std::lround(v[at[size_t(i)]])); };
     Settings s;
-    s.mix = f(0);
-    s.outputGain = std::pow(10.0f, outputDb(f(1)) / 20.0f);
-    s.aligned = c(2) == 0;
-    s.fixedPitch = c(3) == 1;
-    s.transpose = float(semitones(f(4))) + cents(f(5)) / 100.0f;
-    s.glideS = glideS(f(6));
-    s.quantize = c(7);
-    s.key = c(8);
-    s.fixedNote = fixedNote(f(9));
-    s.table = c(10);
-    s.position = f(11);
-    s.track = 2.0f * f(12) - 1.0f;
-    s.formant = f(13);
-    s.formantShift = formantShift(f(14));
-    s.voices = c(15) + 1;
-    s.detuneCents = detuneCents(f(16));
-    s.wtSpread = f(17);
-    s.width = f(18);
-    s.sprayS = sprayS(f(19));
-    s.grainS = grainS(f(20));
-    s.freeze = c(21) != 0;
-    s.releaseS = std::max(0.025f, releaseS(f(22)) / 3.45f);  // the follower's time constant: -30 dB in 3.45 of them
-    s.gateDb = gateDb(f(23));
-    s.voiced = f(24);
-    s.threshold = threshold(f(25));
-    s.sub = subGain(f(26));
-    s.breath = f(27);
-    s.toneHz = toneHz(f(28));
-    s.drive = f(29);
-    s.breathMode = c(30);
-    s.rangeLow = rangeNote(f(31));
-    s.rangeHigh = rangeNote(f(32));
-    s.steadyS = steadyS(f(33));
+    s.mix = f(Mix);
+    s.outputGain = std::pow(10.0f, outputDb(f(Output)) / 20.0f);
+    s.aligned = c(Latency) == 0;
+    s.fixedPitch = c(PitchMode) == 1;
+    s.transpose = float(semitones(f(Transpose))) + cents(f(Fine)) / 100.0f;
+    s.glideS = glideS(f(Glide));
+    s.quantize = c(Quantize);
+    s.key = c(Key);
+    s.fixedNote = fixedNote(f(FixedNote));
+    s.table = c(Table) == kUserChoice ? int(FactoryTables::names().size()) : factoryOfChoice(c(Table));  // the engine: factory index, or count for the user table
+    s.position = f(Position);
+    s.track = 2.0f * f(Track) - 1.0f;
+    s.formant = f(Formant);
+    s.formantShift = formantShift(f(FormantShift));
+    s.voices = c(Voices) + 1;
+    s.detuneCents = detuneCents(f(Detune));
+    s.wtSpread = f(Spread);
+    s.width = f(Width);
+    s.freeze = c(Freeze) != 0;
+    s.releaseS = std::max(0.025f, releaseS(f(Release)) / 3.45f);  // the follower's time constant: -30 dB in 3.45 of them
+    s.gateDb = gateDb(f(Gate));
+    s.voiced = f(Voiced);
+    s.threshold = threshold(f(Sensitivity));
+    s.sub = subGain(f(Sub));
+    s.breath = f(Breath);
+    s.toneHz = toneHz(f(Tone));
+    s.drive = f(Drive);
+    s.breathMode = c(BreathMode);
+    s.rangeLow = rangeNote(f(RangeLow));
+    s.rangeHigh = rangeNote(f(RangeHigh));
+    s.steadyS = steadyS(f(Steady));
+    s.filterModel = c(FilterType);
+    s.filterMode = c(FilterMode);
+    s.filterHz = filterHz(f(FilterCutoff));
+    s.filterRes = f(FilterRes);
+    s.filterDrive = f(FilterDrive);
+    s.filterKey = f(FilterKey);
+    s.filterEnv = 2.0f * f(FilterEnv) - 1.0f;
     return s;
 }
 

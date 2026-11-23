@@ -16,7 +16,7 @@ Every 5.3 ms (one *hop*) the input is analysed and drives up to eight wavetable 
 | **Envelope** | 128-point spectral envelope (20 Hz – 20 kHz) following the harmonic peaks; its broad tilt is removed, so formants can be imprinted without darkening the table | |
 | **Level** | Sample-by-sample envelope follower (1 ms attack, RELEASE), turned into an RMS by the input's own crest factor | wet within 0.9 dB of the input, -30 to -6 dBFS, 1 to 8 voices |
 | **Voices** | Each voice rebuilds its single cycle once per hop from the table's harmonic spectra: only harmonics under 0.45 × the sample rate (band-limited by construction), shaped by the input's formants (FORMANT), normalised to RMS 1, crossfaded over the hop | off-harmonic energy ≤ -49 dB from C4 to G7 (saw, sync ×8, 3-step digital) |
-| **Spray** | Each voice reads its own moment of the last 2 s, grain by grain (Tukey window, staggered starts): a phrase becomes a cloud of its own notes. FREEZE holds one moment | |
+| **Filter** | One stereo filter on the synth, nine models, zero-delay feedback (stable up to Nyquist), saturating where the circuit does: LADDER (Moog, 24 dB), DIODE (TB-303), MS-20 (Korg 35, screaming resonance), SEM (Oberheim, 12 dB state-variable), OTA (CEM 3320 / Prophet-5), DIGITAL (clean), FORMANT (three band-passes on a vowel, A → U along the cutoff), COMB (+ / −), PHASER (four all-passes). LP / BP / HP / NOTCH where the model has them. KEY: the cutoff follows the synth's note; ENV: the playing's level opens or closes it (up to 5 octaves) | every model and mode stays finite and under +6 dB on white noise at full resonance and drive with the cutoff swept 20 Hz → 20 kHz (a soft limit at the output); LP at 1 kHz: −37 dB at 8 kHz for the 12 dB models, −72 to −74 dB for the 24 dB ones; 0.04 – 0.37 % of a core per channel |
 | **Breath** | What is not periodic (breath, bow, consonants) is resynthesised as noise, louder when the input is less periodic. Four colours: FLUTE (jet noise in narrow bands on the synth's own harmonics, over a soft hiss), AIR (bright hiss), WHISPER (the input's vowels), INPUT (the input's own spectrum, the darkest) | A touch, not a layer: squared curve, at most 10 dB under the synth (FLUTE), -30 dB around 30 %; off by default, in 14 presets at -32 to -17 dB. Spectral centroid on an A4 voice: FLUTE 1.9 kHz (36 % on the harmonics, 8 % for plain noise), AIR 3.7 kHz, WHISPER 1.3 kHz, INPUT 0.7 kHz |
 
 **Latency.** ALIGNED (default) delays the dry and the envelope by half an analysis window
@@ -35,7 +35,7 @@ over the last 2 × STEADY; a pitch within 2.5 semitones of it (vibrato, a step, 
 at once. A real leap becomes the median after STEADY and is followed from then on. Measured
 (`--analyse`, five round trips of 10 – 45 ms): 3 reach the synth with STEADY off, 1 at 40 ms
 (the default; the 45 ms one), none at 80 ms; real leaps arrive 37 ms (40 ms) or 79 ms
-(80 ms) later. The SPRAY grains read the same steadied line.
+(80 ms) later.
 
 **Range.** RANGE keeps the synth between two notes (at least an octave apart) by moving
 each note by whole octaves. The octave holds while the note stays within a semitone of the
@@ -55,9 +55,9 @@ playing's dynamics and brightness.
 | Section | Controls |
 |---|---|
 | **PITCH** | TRACK / FIXED, TRANSPOSE (±24 st), FINE, GLIDE, QUANTIZE (Off, Chromatic and the 35 scales of Ableton Live's list, from Major to Messiaen 7) and KEY, FIXED NOTE, RANGE |
-| **TABLE** | 12 factory tables or your own, POSITION, TRACK (the input's brightness moves the position), FORMANT (imprint of the input's formants), FORMANT SHIFT |
+| **TABLE** | 52 factory tables or your own, POSITION, TRACK (the input's brightness moves the position), FORMANT (imprint of the input's formants), FORMANT SHIFT |
 | **UNISON** | VOICES 1 – 8, DETUNE, WT SPREAD (each voice at another position), WIDTH |
-| **SPRAY** | SPRAY (how far back, up to 2 s), GRAIN (20 – 500 ms), FREEZE |
+| **FILTER** | TYPE (OFF and the nine models), LP / BP / HP / NOTCH, CUTOFF (20 Hz – 20 kHz), RESONANCE, DRIVE, KEY TRACK, ENVELOPE, and its response drawn live (the cutoff where KEY and ENV have moved it) |
 | **DYNAMICS** | RELEASE (time to fall 30 dB, 50 ms – 4 s), GATE, VOICED ONLY (mutes the synth on unpitched sounds), SENSITIVITY (pitch detection threshold), STEADY (0 – 120 ms: round trips shorter than this are ignored) |
 | **COLOR** | BREATH and its mode (FLUTE / AIR / WHISPER / INPUT), SUB (sine an octave down), TONE (low-pass), DRIVE |
 | **OUTPUT** | ALIGNED / LIVE, OUTPUT, MIX |
@@ -155,6 +155,20 @@ build-render\Release\nodal_render.exe --all input.wav renders\
 | `plugin/Source/Plugin*.cpp` | JUCE 8 processor (folder browsing, state) and WebView editor |
 | `plugin/HostTest/` | `nodal_hosttest`: loads the VST3 like a DAW and stresses it |
 | `tools/render/` | `nodal_render`: measurements and renders |
+
+## Factory tables
+
+52 tables. The first twelve are drawn by NODAL itself (BASIC, PULSE, SWEEP, VOWEL, HOLLOW, FM,
+SYNC, FOLD, DIGITAL, ORGAN, SHARDS, CHOIR). The other forty come from the **Adventure Kid
+Waveforms** by Kristoffer Ekstrand (CC0 1.0, public domain,
+https://github.com/KristofferKarlAxelEkstrand/AKWF-FREE): 80 single cycles recorded from
+instruments and synths, two per table, POSITION blending from one to the other. STRINGS
+(violin, cello, string box), WOODWINDS (clarinet, oboe, flute, alto sax), GUITARS (acoustic,
+electric), KEYS (piano, electric piano, clavinet, organ), BASS & VOICE (double bass, electric
+bass, voices, theremin), CREATIVE (FM, overtones, granular, distorted, bit-reduced, video game,
+pluck, harmonics). The cycles are in `resources/akwf`, their harmonics are computed by
+`dev/akwf-tables.js` into `dsp/include/nodal/akwf.h`: nothing is computed at load time (the
+52 tables build in 60 ms). In older sessions "User" stays at its place in the TABLE menu.
 
 ## License
 

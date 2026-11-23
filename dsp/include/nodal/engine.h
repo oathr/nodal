@@ -3,6 +3,7 @@
 #include <atomic>
 
 #include "analyzer.h"
+#include "filter.h"
 #include "wavetable.h"
 
 namespace nodal {
@@ -103,6 +104,11 @@ struct Settings {
     float steadyS = 0.04f;  // STEADY: round trips shorter than this are not followed
     float sub = 0.0f, breath = 0.15f, toneHz = 0.0f, drive = 0.0f;
     int breathMode = 0;  // BreathMode
+    // FILTER: model (Filter::Model, 0 = off), response, cutoff, resonance, drive; KEY 0..1:
+    // the cutoff follows the synth's note (1: it moves with it, relative to C4); ENV -1..1:
+    // the playing's level opens (+) or closes (-) the filter, up to 5 octaves.
+    int filterModel = 0, filterMode = 0;
+    float filterHz = 2000.0f, filterRes = 0.3f, filterDrive = 0.0f, filterKey = 0.5f, filterEnv = 0.0f;
 };
 
 class Engine {
@@ -113,6 +119,7 @@ public:
     void prepare(float sampleRate) {
         sampleRate_ = sampleRate;
         analyzer_.prepare(sampleRate);
+        filter_.prepare(sampleRate);
         analyzer_.setThreshold(settings_.threshold);
         analyzer_.setSteady(settings_.steadyS);  // its window is counted in frames: depends on the rate
         hop_ = analyzer_.hop();
@@ -169,6 +176,10 @@ public:
         breathStart_ = breathEnd_ = 0.0f;
         subPhase_ = 0.0;
         tone_[0] = tone_[1] = {};
+        filter_.reset();
+        filterTick_ = 0;
+        filterOct_ = -1.0f;
+        filterModelNow_ = -1;
         frozen_ = false;
         mixNow_ = settings_.mix;
         outNow_ = settings_.outputGain;
@@ -271,6 +282,21 @@ public:
             noiseOla_[0][size_t(noiseRead_)] = noiseOla_[1][size_t(noiseRead_)] = 0.0f;
             if (++noiseRead_ == noiseSize_) noiseRead_ = 0;
 
+            if (s.filterModel > 0) {
+                // The cutoff is worked out every 16 samples (in octaves, smoothed: no zipper).
+                if (--filterTick_ <= 0) {
+                    filterTick_ = 16;
+                    if (s.filterModel != filterModelNow_) { filter_.reset(); filterModelNow_ = s.filterModel; }
+                    const float noteHz = std::max(20.0f, voices_[0].incEnd * sampleRate_);
+                    const float levelDb = gainToDb(std::max(level, 1.0e-6f)), lvl = std::clamp((levelDb + 50.0f) / 50.0f, 0.0f, 1.0f);
+                    const float target = std::log2(s.filterHz) + s.filterKey * std::log2(noteHz / 261.63f) + 5.0f * s.filterEnv * lvl;
+                    filterOct_ = filterOct_ < 0.0f ? target : filterOct_ + 0.35f * (target - filterOct_);
+                    filter_.set(Filter::Model(std::clamp(s.filterModel, 0, Filter::kModels - 1)), Filter::Mode(std::clamp(s.filterMode, 0, 3)),
+                                std::exp2(filterOct_), s.filterRes, s.filterDrive);
+                }
+                synthL = filter_.process(0, synthL);
+                synthR = filter_.process(1, synthR);
+            }
             if (s.toneHz > 0.0f) {
                 synthL = tone_[0].process(synthL, toneG_, toneK_);
                 synthR = tone_[1].process(synthR, toneG_, toneK_);
@@ -668,6 +694,9 @@ private:
     float mixNow_ = 1.0f, outNow_ = 1.0f, outLevel_ = 0.0f;
     double subPhase_ = 0.0;
     std::array<Svf, 2> tone_{};
+    Filter filter_;
+    int filterTick_ = 0, filterModelNow_ = -1;
+    float filterOct_ = -1.0f;  // the cutoff now, in octaves above 1 Hz
     Rng rng_, noiseRng_{0x2545F491u};  // the breath has its own: it never changes which grains SPRAY picks
     Readout readout_;
 };

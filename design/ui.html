@@ -61,7 +61,20 @@ header { position: absolute; left: 20px; right: 20px; top: 14px; height: 52px; d
 .barcode::after { content: "NDL-0.2"; position: absolute; left: 0; right: 0; bottom: -1px; background: var(--bg); text-align: center; font-size: 8px; letter-spacing: 1px; color: var(--ink2); }
 
 /* Cards --------------------------------------------------------------------------------- */
-.col { position: absolute; top: 78px; display: flex; flex-direction: column; gap: 10px; }
+.col { position: absolute; top: 78px; bottom: 26px; display: flex; flex-direction: column; gap: 10px; }
+/* the three columns end at the same height: in each, one card grows, and in it one drawing */
+.card.grow { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.card.grow > .body { flex: 1 1 auto; min-height: 0; }
+.growbox { flex: 1 1 0; min-height: 44px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px 12px; }
+/* FILTER */
+.frow { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+.frow .seg { height: 18px; }
+.frow .seg button { font-size: 9px; padding: 0 7px; }
+.fbox { border: 1px solid var(--edge); background: var(--well); position: relative; }
+.fbox span { position: absolute; font-size: 8px; color: var(--ink2); letter-spacing: .6px; top: 3px; }
+.orow { display: grid; grid-template-columns: 1fr 120px; gap: 8px; }
+.orow .toggle { height: 26px; font-size: 11px; letter-spacing: 2px; }
 .card { background: var(--card); border: 1px solid var(--edge); position: relative; }
 .card > h2 { height: 24px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 0; font-weight: 600; font-size: 10px; letter-spacing: 1.6px;
   background: var(--tint, var(--paper2)); color: var(--dark); }
@@ -131,7 +144,7 @@ header { position: absolute; left: 20px; right: 20px; top: 14px; height: 52px; d
 .meter i { position: absolute; left: 0; top: 0; bottom: 0; }
 .mlbl { display: flex; justify-content: space-between; font-size: 9px; letter-spacing: 1px; color: var(--ink2); margin-bottom: -3px; }
 canvas { display: block; }
-.envbox { border: 1px solid var(--edge); height: 50px; position: relative; background: var(--well); }
+.envbox { border: 1px solid var(--edge); min-height: 50px; position: relative; background: var(--well); }
 .envbox span { position: absolute; font-size: 8px; color: var(--ink2); letter-spacing: .6px; top: 3px; }
 
 /* PLATE ------------------------------------------------------------------------------- */
@@ -187,7 +200,7 @@ canvas { display: block; }
 .tbtn { font: inherit; font-size: 9.5px; letter-spacing: 1.1px; border: 1px solid var(--edge); background: transparent; color: var(--ink); padding: 0 9px; cursor: pointer; height: 26px; }
 .tbtn:hover { background: var(--butter); color: var(--dark); }
 .trow { display: flex; gap: 6px; }
-.wtbox { border: 1px solid var(--edge); height: 52px; background: var(--well); position: relative; }
+.wtbox { border: 1px solid var(--edge); min-height: 52px; background: var(--well); position: relative; }
 .err { color: #FF9DB5; font-size: 9.5px; position: absolute; left: 8px; right: 8px; bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: rgba(10,10,9,.85); padding: 1px 4px; pointer-events: none; }
 .err:empty { display: none; }
 
@@ -216,7 +229,7 @@ canvas { display: block; }
 
   <!-- Left: what comes in, and how it becomes a pitch -->
   <div class="col" style="left:20px;width:360px">
-    <div class="card" style="--tint:var(--mint);--accent:var(--mint)">
+    <div class="card grow" style="--tint:var(--mint);--accent:var(--mint)">
       <h2><span class="no">01</span>SOURCE<span class="code">IN // ANALYSIS</span></h2>
       <div class="body">
         <div class="readout">
@@ -233,7 +246,7 @@ canvas { display: block; }
         <div class="mlbl"><span>LEVEL IN / OUT</span><span id="lvlTxt"></span></div>
         <div class="meter"><i id="lvlIn" style="background:var(--mint)"></i></div>
         <div class="meter" style="margin-top:-3px"><i id="lvlOut" style="background:var(--lilac)"></i></div>
-        <div class="envbox"><canvas id="envCanvas"></canvas><span style="left:4px">ENVELOPE // FORMANTS</span><span style="right:4px">20 HZ — 20 KHZ</span></div>
+        <div class="envbox growbox"><canvas id="envCanvas"></canvas><span style="left:4px">ENVELOPE // FORMANTS</span><span style="right:4px">20 HZ — 20 KHZ</span></div>
       </div>
     </div>
     <div class="card" style="--tint:var(--peach);--accent:var(--peach)">
@@ -283,7 +296,7 @@ canvas { display: block; }
       <div class="cross" style="left:8px;bottom:28px"></div><div class="cross" style="right:8px;bottom:28px"></div>
       <div class="big" id="plateNote"></div>
     </div>
-    <div class="card" style="--tint:var(--lilac);--accent:var(--lilac)">
+    <div class="card grow" style="--tint:var(--lilac);--accent:var(--lilac)">
       <h2><span class="no">04</span>TABLE<span class="code" id="tableCode">FACTORY</span></h2>
       <div class="body" style="gap:6px">
         <div class="trow">
@@ -296,7 +309,7 @@ canvas { display: block; }
           <button class="tbtn" id="tableFile">FILE</button>
           <button class="tbtn" id="tableFolder">FOLDER</button>
         </div>
-        <div class="wtbox"><canvas id="wtCanvas"></canvas><div class="err" id="tableErr"></div></div>
+        <div class="wtbox growbox"><canvas id="wtCanvas"></canvas><div class="err" id="tableErr"></div></div>
         <div class="grid2">
           <div class="ctl" data-id="position"></div>
           <div class="ctl bipolar" data-id="track"></div>
@@ -312,29 +325,31 @@ canvas { display: block; }
     <div class="card" style="--tint:var(--sky);--accent:var(--sky)">
       <h2><span class="no">05</span>UNISON<span class="code">VOICES // SPREAD</span></h2>
       <div class="body">
-        <div class="seglbl"><span>VOICES</span></div>
         <div class="seg" data-choice="voices"></div>
-        <div class="grid2">
+        <div class="grid3">
           <div class="ctl" data-id="detune"></div>
           <div class="ctl" data-id="spread"></div>
+          <div class="ctl" data-id="width"></div>
         </div>
-        <div class="ctl" data-id="width"></div>
       </div>
     </div>
-    <div class="card" style="--tint:var(--rose);--accent:var(--rose)">
-      <h2><span class="no">06</span>SPRAY<span class="code">TIME // GRAIN</span></h2>
+    <div class="card grow" style="--tint:var(--rose);--accent:var(--rose)">
+      <h2><span class="no">06</span>FILTER<span class="code" id="filterCode">OFF</span></h2>
       <div class="body">
+        <div class="frow"><div class="drop" data-id="filter_type"></div><div class="seg" data-choice="filter_mode"></div></div>
+        <div class="fbox growbox"><canvas id="filterCanvas"></canvas><span style="left:4px">RESPONSE</span><span style="right:4px" id="filterNow"></span></div>
+        <div class="ctl" data-id="filter_cutoff"></div>
         <div class="grid2">
-          <div class="ctl" data-id="spray"></div>
-          <div class="ctl" data-id="grain"></div>
+          <div class="ctl" data-id="filter_res"></div>
+          <div class="ctl" data-id="filter_drive"></div>
+          <div class="ctl" data-id="filter_key"></div>
+          <div class="ctl bipolar" data-id="filter_env"></div>
         </div>
-        <div class="toggle" data-toggle="freeze"><span class="dot"></span>FREEZE</div>
       </div>
     </div>
     <div class="card" style="--tint:var(--mint);--accent:var(--mint)">
       <h2><span class="no">07</span>COLOR<span class="code">SUB // AIR // TONE</span></h2>
       <div class="body">
-        <div class="seglbl"><span>BREATH MODE</span></div>
         <div class="seg" data-choice="breath_mode"></div>
         <div class="grid2">
           <div class="ctl" data-id="breath"></div>
@@ -347,7 +362,7 @@ canvas { display: block; }
     <div class="card" style="--tint:var(--peach);--accent:var(--peach)">
       <h2><span class="no">08</span>OUTPUT<span class="code">DRY // WET</span></h2>
       <div class="body">
-        <div class="seg" data-choice="latency"></div>
+        <div class="orow"><div class="seg" data-choice="latency"></div><div class="toggle" data-toggle="freeze"><span class="dot"></span>FREEZE</div></div>
         <div class="ctl" data-id="output"></div>
         <div class="ctl big" data-id="mix" style="--accent:var(--lilac)"></div>
       </div>
@@ -369,7 +384,21 @@ const ms = s => s < 1 ? Math.round(1000 * s) + ' ms' : s.toFixed(2) + ' s';
 const hz = f => f < 1000 ? Math.round(f) + ' Hz' : (f / 1000).toFixed(1) + ' kHz';
 const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = m => { const n = Math.round(m); return NOTES[(n % 12 + 12) % 12] + (Math.floor(n / 12) - 1); };
-const TABLES = ['Basic', 'Pulse', 'Sweep', 'Vowel', 'Hollow', 'FM', 'Sync', 'Fold', 'Digital', 'Organ', 'Shards', 'Choir', 'User'];
+// The factory tables in their order (FactoryTables::names), by family for the menu. The TABLE
+// parameter's choices put "User" at 12 (where NODAL 0.2 saved it): choiceOf / factoryOf.
+const TABLE_GROUPS = [
+  ['CLASSIC', ['Basic', 'Pulse', 'Sweep', 'Vowel', 'Hollow', 'FM', 'Sync', 'Fold', 'Digital', 'Organ', 'Shards', 'Choir']],
+  // Adventure Kid Waveforms (CC0): two cycles of an instrument or a family per table
+  ['STRINGS', ['Violin 1', 'Violin 2', 'Cello 1', 'Cello 2', 'String Box']],
+  ['WOODWINDS', ['Clarinet 1', 'Clarinet 2', 'Oboe 1', 'Oboe 2', 'Flute 1', 'Flute 2', 'Alto Sax 1', 'Alto Sax 2']],
+  ['GUITARS', ['Acoustic Gtr 1', 'Acoustic Gtr 2', 'Electric Gtr 1', 'Electric Gtr 2']],
+  ['KEYS', ['Piano 1', 'Piano 2', 'Piano 3', 'E-Piano 1', 'E-Piano 2', 'Clavinet', 'Organ 1', 'Organ 2']],
+  ['BASS & VOICE', ['Double Bass', 'E-Bass', 'Voice 1', 'Voice 2', 'Voice 3', 'Theremin']],
+  ['CREATIVE', ['FM 1', 'FM 2', 'Overtone', 'Granular', 'Distorted', 'Bitreduced', 'Video Game', 'Pluck', 'Harmonics']]];
+const FACTORY = TABLE_GROUPS.flatMap(([, names]) => names);
+const USER_CHOICE = 12;
+const choiceOf = i => i < USER_CHOICE ? i : i + 1, factoryOf = c => c < USER_CHOICE ? c : c - 1;
+const TABLES = [...FACTORY.slice(0, USER_CHOICE), 'User', ...FACTORY.slice(USER_CHOICE)];
 const S = (kind, def, text, extra = {}) => ({ kind, def, text, ...extra });
 const SPECS = {
   mix: S('slider', 1, pct, { label: 'MIX' }),
@@ -397,9 +426,14 @@ const SPECS = {
   detune: S('slider', Math.sqrt(12 / 50), t => (50 * t * t).toFixed(1) + ' ct', { label: 'DETUNE' }),
   spread: S('slider', .15, pct, { label: 'WT SPREAD' }),
   width: S('slider', .6, pct, { label: 'WIDTH' }),
-  spray: S('slider', 0, t => t <= 0 ? 'off' : ms(2 * t * t), { label: 'SPRAY' }),
-  grain: S('slider', Math.log(6) / Math.log(25), t => ms(.02 * Math.pow(25, t)), { label: 'GRAIN' }),
   freeze: S('toggle', 0, null),
+  filter_type: S('choice', 0, null, { label: 'FILTER', choices: ['Off', 'Ladder', 'Diode', 'MS-20', 'SEM', 'OTA', 'Digital', 'Formant', 'Comb', 'Phaser'] }),
+  filter_mode: S('choice', 0, null, { choices: ['LP', 'BP', 'HP', 'Notch'] }),
+  filter_cutoff: S('slider', Math.log(100) / Math.log(1000), t => hz(20 * Math.pow(1000, t)), { label: 'CUTOFF' }),
+  filter_res: S('slider', .3, pct, { label: 'RESONANCE' }),
+  filter_drive: S('slider', 0, pct, { label: 'DRIVE' }),
+  filter_key: S('slider', .5, pct, { label: 'KEY TRACK' }),
+  filter_env: S('slider', .5, bip, { label: 'ENVELOPE' }),
   release: S('slider', Math.log(8) / Math.log(80), t => ms(.05 * Math.pow(80, t)), { label: 'RELEASE' }),
   gate: S('slider', 30 / 70, t => Math.round(-90 + 70 * t) + ' dB', { label: 'GATE' }),
   voiced: S('slider', .5, pct, { label: 'VOICED ONLY' }),
@@ -433,9 +467,14 @@ const HELP = {
   detune: 'Spread of the voices\' tuning.',
   spread: 'Each voice reads another region of the table.',
   width: 'Stereo spread of the voices.',
-  spray: 'Each voice plays its own moment of the past, up to 2 s back: the phrase becomes a cloud.',
-  grain: 'Length of each voice\'s grain when SPRAY is on.',
   freeze: 'Holds one moment: pitch and timbre stop, the dynamics still follow the playing.',
+  filter_type: 'The filter on the synth. LADDER (Moog, 24 dB), DIODE (303), MS-20 (screams), SEM (Oberheim, 12 dB), OTA (Prophet), DIGITAL (clean), FORMANT (vowels A → U along the cutoff), COMB (+ / −), PHASER.',
+  filter_mode: 'Low-pass, band-pass, high-pass, notch (COMB: LP / BP +, HP / NOTCH −).',
+  filter_cutoff: 'Where the filter cuts (20 Hz – 20 kHz).',
+  filter_res: 'Resonance: the peak at the cutoff; the analog models sing near the top.',
+  filter_drive: 'Saturation into the filter.',
+  filter_key: 'The cutoff follows the synth\'s note: at 100 % it moves with it, from C4.',
+  filter_env: 'The playing\'s level moves the cutoff: + louder opens it, − closes it (up to 5 octaves).',
   release: 'How fast the synth falls when the playing stops (time to fall 30 dB).',
   gate: 'Under this level the synth is silent (room noise, bleed).',
   voiced: 'Mutes the synth on unpitched sounds (consonants, noise); BREATH still passes.',
@@ -992,7 +1031,7 @@ const table = {
     const count = t.count || 0, index = t.index >= 0 ? t.index + 1 : 0;
     const where = user ? (t.path ? t.path.split('/').slice(0, -1).join(' / ') : '') : '';
     document.getElementById('tablePath').textContent = `${where ? where + '   ' : ''}${count ? String(index).padStart(2, '0') + ' / ' + String(count).padStart(2, '0') : ''}`;
-    document.getElementById('tableCode').textContent = user ? `FOLDER // ${(t.folder || '').toUpperCase()}` : 'FACTORY // 12 TABLES';
+    document.getElementById('tableCode').textContent = user ? `FOLDER // ${(t.folder || '').toUpperCase()}` : `FACTORY // ${FACTORY.length} TABLES`;
     document.getElementById('tableErr').textContent = t.error || '';
     // Frames: `shown` frames of 64 points each.
     const n = t.shown || 0, pts = n ? t.preview.length / n : 0;
@@ -1006,8 +1045,12 @@ const table = {
   async menu() {
     const anchor = document.getElementById('tableName');
     const user = this.info?.source === 'user';
-    const items = [{ group: 'FACTORY' }];
-    TABLES.slice(0, 12).forEach((name, i) => items.push({ label: name, on: !user && Math.round(bridge.value('table')) === i, pick: () => bridge.set('table', i) }));
+    const items = [];
+    let i = 0;
+    for (const [group, names] of TABLE_GROUPS) {
+      items.push({ group });
+      for (const name of names) { const c = choiceOf(i++); items.push({ label: name, on: !user && Math.round(bridge.value('table')) === c, pick: () => bridge.set('table', c) }); }
+    }
     const list = await bridge.native('getTableList');
     if (list && list.files && list.files.length) {
       let dir = null;
@@ -1065,8 +1108,8 @@ const sim = {
   },
   loadPreset(i) { presets.show(i); },
   reset() { for (const id in SPECS) bridge.set(id, SPECS[id].def); },
-  changed(id) { if (id === 'table') this.factory(Math.round(bridge.value('table'))); },
-  tableStep(d) { bridge.set('table', ((Math.round(bridge.value('table')) + d) % 12 + 12) % 12); },
+  changed(id) { if (id === 'table') { const c = Math.round(bridge.value('table')); if (c !== USER_CHOICE) this.factory(factoryOf(c)); } },
+  tableStep(d) { const n = FACTORY.length, c = Math.round(bridge.value('table')); bridge.set('table', choiceOf(((factoryOf(c === USER_CHOICE ? 0 : c) + d) % n + n) % n)); },
   factory(i) {
     const frames = 64, pts = 64, preview = [];
     for (let f = 0; f < frames; f++) {
@@ -1085,7 +1128,7 @@ const sim = {
         preview.push(v);
       }
     }
-    table.show({ name: TABLES[i], source: 'factory', index: i, count: 12, frames, shown: frames, preview });
+    table.show({ name: FACTORY[i], source: 'factory', index: i, count: FACTORY.length, frames, shown: frames, preview });
   },
   tick(dt) {
     this.t += dt;
@@ -1107,7 +1150,7 @@ const sim = {
       if (!range.full()) { while (note < range.lo() - 1) note += 12; while (note > range.hi() + 1) note -= 12; }  // RANGE, roughly
       live.midi.push(note + s * det / 100);
       live.pos.push(Math.min(1, Math.max(0, pos0 + .5 * bridge.value('spread') * s)));
-      live.lag.push(bridge.value('spray') > 0 ? Math.random() * 2 * bridge.value('spray') ** 2 : 0);
+      live.lag.push(0);
       live.gain.push(1);
     }
     live.out = on ? .25 : live.out * .9;
@@ -1200,7 +1243,7 @@ function drawTable() {
   const frames = table.frames, n = frames.length;
   if (!n) return;
   // An oblique stack: frame 0 at the front left, the last one at the back right.
-  const depthX = 120, depthY = 34, fw = w - depthX - 16, amp = 11;
+  const depthX = 120, depthY = Math.max(34, .42 * h), fw = w - depthX - 16, amp = Math.max(11, .17 * h);
   const ox = f => 8 + f / Math.max(1, n - 1) * depthX, oy = f => h - 14 - f / Math.max(1, n - 1) * depthY;
   const step = n > 40 ? 2 : 1;
   for (let f = n - 1; f >= 0; f -= step) {
@@ -1225,6 +1268,62 @@ function drawTable() {
   });
   g.fillStyle = INK2; g.font = '8px Plex, monospace';
   g.fillText(`FRAME ${String(Math.round(positions[0] * (n - 1)) + 1).padStart(3, '0')} / ${table.info?.frames ?? n}`, w - 92, 10);
+}
+
+// FILTER: the response of the chosen model and mode (its linear part), and where the cutoff
+// is now (KEY follows the synth's note, ENV the playing's level).
+const FILTER_ORDER = [0, 4, 4, 2, 2, 4, 2, 0, 0, 0];  // poles per model (LADDER … DIGITAL)
+function filterGain(model, mode, fc, res, f) {
+  const x = f / fc, lx = Math.log2(x);
+  if (model === 7) {  // FORMANT: three band-passes on the vowel at this cutoff
+    const F = [[800, 1150, 2900], [400, 1600, 2700], [270, 2300, 3000], [450, 800, 2830], [325, 700, 2530]];
+    const A = [[0, -6, -32], [0, -24, -30], [0, -24, -28], [0, -9, -40], [0, -12, -42]];
+    const sv = Math.min(1, Math.max(0, Math.log(fc / 150) / Math.log(40))) * 4, i = Math.min(3, Math.floor(sv)), u = sv - i, q = 2 + 18 * res;
+    let g = 0;
+    for (let j = 0; j < 3; j++) {
+      const fj = F[i][j] + u * (F[i + 1][j] - F[i][j]), aj = Math.pow(10, (A[i][j] + u * (A[i + 1][j] - A[i][j])) / 20), r = f / fj - fj / f;
+      g += aj / Math.sqrt(1 + q * q * r * r);
+    }
+    return g;
+  }
+  if (model === 8) {  // COMB: one period of the cutoff fed back
+    const k = (mode >= 2 ? -.97 : .97) * res, c = Math.cos(2 * Math.PI * x);
+    return (1 - .5 * res) / Math.sqrt(Math.max(1e-4, 1 - 2 * k * c + k * k));
+  }
+  if (model === 9) {  // PHASER: four all-passes around the cutoff, half mixed with the input
+    let ph = 0;
+    for (const sp of [.5, .8, 1.25, 2]) ph -= 2 * Math.atan(f / (fc * sp));
+    return Math.abs(Math.cos((ph + (mode >= 2 ? Math.PI : 0)) / 2));
+  }
+  const n = FILTER_ORDER[model] || 2, peak = 1 + res * res * (n === 4 ? 9 : 6) * Math.exp(-((lx / .16) ** 2));
+  const lp = 1 / Math.sqrt(1 + Math.pow(x, 2 * n)), hp = 1 / Math.sqrt(1 + Math.pow(1 / x, 2 * n));
+  const q = .7 + 6 * res * res, bp = 1 / Math.sqrt(1 + q * q * (x - 1 / x) ** 2);
+  return mode === 0 ? lp * peak : mode === 1 ? bp * (1 + 2 * res) : mode === 2 ? hp * peak : Math.abs(1 - bp);
+}
+function drawFilter() {
+  const c = document.getElementById('filterCanvas'), { w, h, s } = fitCanvas(c), g = c.getContext('2d');
+  g.setTransform(s, 0, 0, s, 0, 0);
+  g.clearRect(0, 0, w, h);
+  const model = Math.round(bridge.value('filter_type')), mode = Math.round(bridge.value('filter_mode'));
+  const MODELS = SPECS.filter_type.choices, slope = ['', '24 DB', '18 DB', '12 DB', '12 DB', '24 DB', '12 DB', 'VOWELS', mode >= 2 ? 'NEGATIVE' : 'POSITIVE', '4 STAGES'];
+  document.getElementById('filterCode').textContent = model ? `${MODELS[model].toUpperCase()} // ${slope[model]}` : 'OFF';
+  const xOf = f => Math.log(f / 20) / Math.log(1000) * w, yOf = db => 10 + (18 - db) / 54 * (h - 14);
+  g.strokeStyle = 'rgba(236,234,223,.07)'; g.lineWidth = 1;
+  for (const f of [100, 1000, 10000]) { g.beginPath(); g.moveTo(xOf(f), 12); g.lineTo(xOf(f), h); g.stroke(); }
+  g.beginPath(); g.moveTo(0, yOf(0)); g.lineTo(w, yOf(0)); g.stroke();
+  const fc = 20 * Math.pow(1000, bridge.value('filter_cutoff')), res = bridge.value('filter_res');
+  // Where the cutoff is now: the synth's note (KEY) and the playing's level (ENV) move it.
+  const note = live.midi && live.midi.length && Number.isFinite(live.midi[0]) ? 440 * Math.pow(2, (live.midi[0] - 69) / 12) : 261.63;
+  const lvl = Math.min(1, Math.max(0, ((live.level ?? -120) + 50) / 50));
+  const now = Math.min(20000, Math.max(16, fc * Math.pow(note / 261.63, bridge.value('filter_key')) * Math.pow(2, 5 * (2 * bridge.value('filter_env') - 1) * lvl)));
+  document.getElementById('filterNow').textContent = model ? 'NOW ' + hz(now).toUpperCase() : '';
+  if (!model) { g.fillStyle = INK2; g.font = '9px Plex, monospace'; g.fillText('OFF: THE SYNTH AS IT IS', 8, h / 2 + 3); return; }
+  const curve = at => { g.beginPath(); for (let i = 0; i <= 160; i++) { const f = 20 * Math.pow(1000, i / 160), db = Math.max(-36, Math.min(18, 20 * Math.log10(filterGain(model, mode, at, res, f) + 1e-6))); i ? g.lineTo(xOf(f), yOf(db)) : g.moveTo(xOf(f), yOf(db)); } };
+  curve(fc); g.lineTo(w, h); g.lineTo(0, h); g.closePath();
+  g.fillStyle = 'rgba(244,181,207,.22)'; g.fill();
+  curve(fc); g.strokeStyle = INK2; g.lineWidth = 1; g.stroke();
+  curve(now); g.strokeStyle = css('--rose'); g.lineWidth = 1.6; g.stroke();
+  g.fillStyle = INK; g.fillRect(xOf(now) - .5, 10, 1, h - 10);
 }
 
 // ======================================================================================
@@ -1596,7 +1695,6 @@ const plate = {
     const level = Math.min(1, live.out * 4);
     const frozen = !!bridge.value('freeze');
     this.energy += (1 - Math.exp(-dt / .08)) * ((frozen ? .35 : 1) * level - this.energy);
-    this.spray = bridge.value('spray');
     this.phase = (this.phase + dt * (.15 + 1.6 * this.energy)) % 1000;
     document.getElementById('modeTag').textContent = `${this.modes[0][0].toFixed(1)}:${this.modes[0][1].toFixed(1)} S${this.sym >= 0 ? "+" : ""}${this.sym.toFixed(1)}`;
   },
@@ -1628,7 +1726,7 @@ const plate = {
       gl.viewport(0, 0, N, N);
       this.bindTex(this.simProg, 'uState', this.tex[this.cur]);
       gl.uniform1f(this.uni(this.simProg, 'uTime'), (this.time * 13.37 + step * 3.1) % 1000);
-      gl.uniform1f(this.uni(this.simProg, 'uEnergy'), this.energy * (1 + 1.5 * this.spray));
+      gl.uniform1f(this.uni(this.simProg, 'uEnergy'), this.energy);
       gl.uniform1i(this.uni(this.simProg, 'uMode'), kind);
       this.quadDraw(this.simProg);
       this.cur = 1 - this.cur;
@@ -1819,6 +1917,7 @@ function frame(now) {
   if (live.env !== shownEnv) { shownEnv = live.env; drawEnvelope(); }
   const tableKey = `${table.frames.length}|${table.info?.name}|${table.info?.path}|${(live.pos || []).map(p => Math.round(p * 200)).join(',')}|${zoom}`;
   if (tableKey !== shownTable) { shownTable = tableKey; drawTable(); }
+  drawFilter();
   range.draw();
   if (!plate.resting) plate.draw(dt);
 }
@@ -1829,7 +1928,6 @@ if (window.__JUCE__ && PLATE_VIEW) {  // no relays here: only the live state, an
   window.__JUCE__.backend.addEventListener('nodal_live', l => {
     live.fromHost(l);
     bridge.values.set('freeze', l.freeze ? 1 : 0);
-    bridge.values.set('spray', l.spray || 0);
   });
 } else if (window.__JUCE__) bridge.connect(await import('./juce/index.js'));
 else sim.start();

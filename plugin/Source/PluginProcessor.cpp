@@ -12,7 +12,7 @@ juce::String groupOf(const std::string& id) {
         {{"pitch_mode", "transpose", "fine", "glide", "quantize", "key", "fixed_note", "range_low", "range_high"}, "PITCH"},
         {{"table", "position", "track", "formant", "formant_shift"}, "TABLE"},
         {{"voices", "detune", "spread", "width"}, "UNISON"},
-        {{"spray", "grain", "freeze"}, "SPRAY"},
+        {{"filter_type", "filter_mode", "filter_cutoff", "filter_res", "filter_drive", "filter_key", "filter_env"}, "FILTER"},
         {{"release", "gate", "voiced", "sensitivity", "steady"}, "DYNAMICS"},
         {{"sub", "breath", "breath_mode", "tone", "drive"}, "COLOR"}};
     for (const auto& [ids, name] : groups)
@@ -74,8 +74,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout createLayout() {
 }
 
 constexpr int kStateVersion = 1;
-// The menu's last item ("User"). From the names: no table is built at load time.
-int userTableIndex() { return int(nodal::FactoryTables::names().size()); }
+// "User" in the TABLE menu: index 12, where NODAL 0.2 saved it (the newer factory tables
+// come after it). No table is built at load time.
+int userTableIndex() { return nodal::params::kUserChoice; }
 
 juce::PropertiesFile::Options globalSettings() {
     juce::PropertiesFile::Options o;
@@ -184,12 +185,12 @@ void NodalProcessor::resetAll() {
 
 // --- Wavetables ---------------------------------------------------------------------
 
-bool NodalProcessor::usingUserTable() const { return int(std::lround(apvts.getRawParameterValue("table")->load())) >= userTableIndex(); }
+bool NodalProcessor::usingUserTable() const { return int(std::lround(apvts.getRawParameterValue("table")->load())) == userTableIndex(); }
 
 const nodal::Wavetable& NodalProcessor::currentTable() const {
     const int index = int(std::lround(apvts.getRawParameterValue("table")->load()));
-    if (index >= userTableIndex()) return userTable_ ? *userTable_ : nodal::FactoryTables::get().table(0);
-    return nodal::FactoryTables::get().table(index);
+    if (index == userTableIndex()) return userTable_ ? *userTable_ : nodal::FactoryTables::get().table(0);
+    return nodal::FactoryTables::get().table(nodal::params::factoryOfChoice(index));
 }
 
 // Serum and most editors write 2048-sample frames and say so in a "clm " chunk
@@ -319,9 +320,11 @@ void NodalProcessor::stepTable(int delta) {
         }
         return;
     }
-    const int count = userTableIndex();
+    // Through the factory tables in their order (the menu's "User" is skipped).
+    const int count = nodal::FactoryTables::get().count();
     const int index = int(std::lround(apvts.getRawParameterValue("table")->load()));
-    if (auto* p = apvts.getParameter("table")) p->setValueNotifyingHost(p->convertTo0to1(float(((index + delta) % count + count) % count)));
+    const int next = ((nodal::params::factoryOfChoice(index) + delta) % count + count) % count;
+    if (auto* p = apvts.getParameter("table")) p->setValueNotifyingHost(p->convertTo0to1(float(nodal::params::choiceOfFactory(next))));
     ++tableVersion;
 }
 
