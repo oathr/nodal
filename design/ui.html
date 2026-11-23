@@ -1342,10 +1342,9 @@ const plate = {
       void main() {
         vec2 q = uShape == 1 ? qOf(uv) : uv;
         float u = field(q), a = abs(u);
-        vec3 plate = vec3(.035), grey = vec3(.068), white = vec3(.93);  // the figure under the sand: a hint, not a shadow
+        vec3 plate = vec3(.035), grey = vec3(.047), white = vec3(.93);  // the figure under the sand: barely there, the grains draw it
         vec3 c = mix(plate, grey, smoothstep(0.0, 1.4, a));
-        c = mix(c, plate * .8, smoothstep(.0, .1, -u) * .15);
-        c = mix(c, white, (1.0 - smoothstep(0.0, .035, a)) * .07 * uEnergy);
+        c = mix(c, white, (1.0 - smoothstep(0.0, .035, a)) * .03 * uEnergy);
         if (uShape == 1) {
           float r = length(q * 2.0 - 1.0), px = fwidth(r);
           c = mix(c, vec3(.02), smoothstep(1.0, 1.0 + px, r));
@@ -1413,15 +1412,22 @@ const plate = {
       precision highp float; in vec2 uv; out vec4 o; uniform float uEnergy, uPhase;
       ${field}
       ${qOf}
+      // A ridge's height at x: the field's size there (smoothed through zero: no sharp kinks).
+      float ridge(float x, float base, float body) {
+        float u = field(vec2(x, base + .015 * sin(uPhase)));
+        return base + body * (min(.2, .045 * sqrt(u * u + .02) * (.5 + 1.2 * uEnergy)) + .01);
+      }
       void main() {
         vec2 q = qOf(uv);
-        float px = fwidth(uv.y), c = .025;
+        float py = fwidth(uv.y), qx = fwidth(q.x), c = .025;  // one pixel, in uv (height) and in q (width)
         float body = smoothstep(.02, .3, q.x) * smoothstep(.98, .7, q.x);
-        for (int k = 0; k < 54; k++) {  // front (bottom) to back
-          float base = .07 + .8 * float(k) / 53.0;
-          float h = base + body * min(.2, .045 * abs(field(vec2(q.x, base + .015 * sin(uPhase)))) * (.5 + 1.2 * uEnergy) + .01 * body);
+        for (int k = 0; k < 54; k++) {  // front (bottom) to back: the first ridge above this pixel hides the rest
+          float base = .07 + .8 * float(k) / 53.0, h = ridge(q.x, base, body);
           if (uv.y < h) {
-            float line = 1.0 - smoothstep(0.0, 1.4, (h - uv.y) / px);
+            // Distance to the line across it, not straight down: a steep line keeps its width.
+            float slope = (ridge(q.x + qx, base, body) - h) / py;  // pixels up per pixel across
+            float d = (h - uv.y) / py / sqrt(1.0 + slope * slope);
+            float line = 1.0 - smoothstep(.35, 1.6, d);
             c = max(c, line * (.92 - .45 * float(k) / 53.0));
             break;
           }
